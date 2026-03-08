@@ -1,0 +1,165 @@
+version: "3.9"
+
+x-postgres-env: &postgres-env
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+
+x-service-env: &service-env
+  DB_PORT: 5432
+  DB_USER: postgres
+  DB_PASSWORD: postgres
+  KAFKA_BROKERS: kafka:29092
+
+x-network: &default-network
+  networks:
+    - microservices-net
+
+services:
+  postgres-event:
+    image: postgres:17-alpine
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: eventdb
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_event_data:/var/lib/postgresql/data
+    <<: *default-network
+
+  postgres-user:
+    image: postgres:17-alpine
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: userdb
+    ports:
+      - "5434:5432"
+    volumes:
+      - pg_user_data:/var/lib/postgresql/data
+    <<: *default-network
+
+  postgres-booking:
+    image: postgres:17-alpine
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: bookingdb
+    ports:
+      - "5435:5432"
+    volumes:
+      - pg_booking_data:/var/lib/postgresql/data
+    <<: *default-network
+
+  postgres-payment:
+    image: postgres:17-alpine
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: paymentdb
+    ports:
+      - "5436:5432"
+    volumes:
+      - pg_payment_data:/var/lib/postgresql/data
+    <<: *default-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    <<: *default-network
+
+  kafka:
+    image: confluentinc/cp-kafka:8.2.0
+    hostname: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://kafka:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    <<: *default-network
+
+  event-service:
+    build: ./event-service
+    ports:
+      - "3001:3001"
+    environment:
+      <<: *service-env
+      PORT: 3001
+      DB_HOST: postgres-event
+      DB_NAME: eventdb
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - postgres-event
+      - redis
+      - kafka
+    <<: *default-network
+
+  user-service:
+    build: ./user-service
+    ports:
+      - "3002:3002"
+    environment:
+      <<: *service-env
+      PORT: 3002
+      DB_HOST: postgres-user
+      DB_NAME: userdb
+      JWT_SECRET: demo-secret-change-in-production
+    depends_on:
+      - postgres-user
+      - kafka
+    <<: *default-network
+
+  booking-service:
+    build: ./booking-service
+    ports:
+      - "3003:3003"
+    environment:
+      <<: *service-env
+      PORT: 3003
+      DB_HOST: postgres-booking
+      DB_NAME: bookingdb
+      EVENT_SERVICE_URL: http://event-service:3001
+      USER_SERVICE_URL: http://user-service:3002
+    depends_on:
+      - postgres-booking
+      - kafka
+      - event-service
+      - user-service
+    <<: *default-network
+
+  payment-service:
+    build: ./payment-service
+    ports:
+      - "3004:3004"
+    environment:
+      <<: *service-env
+      PORT: 3004
+      DB_HOST: postgres-payment
+      DB_NAME: paymentdb
+      BOOKING_SERVICE_URL: http://booking-service:3003
+    depends_on:
+      - postgres-payment
+      - kafka
+      - booking-service
+    <<: *default-network
+
+volumes:
+  pg_event_data:
+  pg_user_data:
+  pg_booking_data:
+  pg_payment_data:
+  kafka_data:
+
+networks:
+  microservices-net:
+    driver: bridge
