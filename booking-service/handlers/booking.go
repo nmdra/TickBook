@@ -337,14 +337,29 @@ func fetchEventPrice(client *http.Client, eventURL string) (float64, error) {
 	}
 
 	var event struct {
-		Price float64 `json:"price"`
+		Price interface{} `json:"price"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&event); err != nil {
 		return 0, err
 	}
 
-	if event.Price <= 0 {
+	var price float64
+	switch v := event.Price.(type) {
+	case string:
+		price, err = strconv.ParseFloat(v, 64)
+		if err != nil {
+			return 0, err
+		}
+	case float64:
+		price = v
+	case nil:
+		return 0, fmt.Errorf("price field is missing in event response")
+	default:
+		return 0, fmt.Errorf("unexpected type for price field in event response")
+	}
+
+	if price <= 0 {
 		return 50.00, nil
 	}
-	return event.Price, nil
+	return price, nil
 }
