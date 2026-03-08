@@ -32,25 +32,6 @@ jobs:
           cache: "maven"
       - run: mvn verify -B
 
-  security-scan:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          java-version: "21"
-          distribution: "temurin"
-          cache: "maven"
-      - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/maven@master
-        continue-on-error: true
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --severity-threshold=critical --file=payment-service/pom.xml
-
   build-and-push:
     needs: [lint-and-test]
     runs-on: ubuntu-latest

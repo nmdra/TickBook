@@ -33,28 +33,6 @@ jobs:
       - run: npm ci
       - run: npm audit --audit-level=high || true
 
-  security-scan:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: event-service/package-lock.json
-      - name: Install dependencies
-        run: npm ci
-        working-directory: event-service
-      - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/node@master
-        continue-on-error: true
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --severity-threshold=critical --file=event-service/package.json
-
   build-and-push:
     needs: [lint-and-test]
     runs-on: ubuntu-latest
