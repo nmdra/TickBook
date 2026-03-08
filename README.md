@@ -82,11 +82,10 @@ docker compose up --build
 
 Each service has a GitHub Actions workflow that:
 1. Runs lint/build checks on pull requests
-2. Builds and pushes Docker images to Docker Hub on merge to `main`
+2. Builds and pushes Docker images to GitHub Container Registry (GHCR) on merge to `main` using the repository `GITHUB_TOKEN`
 
-Required GitHub Secrets:
-- `DOCKER_USERNAME` – Docker Hub username
-- `DOCKER_PASSWORD` – Docker Hub access token
+Required permissions/secrets:
+- `GITHUB_TOKEN` – must have `packages: write` and `contents: read` permissions (configured in the workflow or repo settings)
 
 ## Project Structure
 
