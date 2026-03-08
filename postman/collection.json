@@ -1,0 +1,890 @@
+{
+  "info": {
+    "name": "TickBook API",
+    "description": "API collection for TickBook — a microservices-based event ticket booking system.\n\nServices:\n- Event Service (port 3001)\n- User Service (port 3002)\n- Booking Service (port 3003)\n- Payment Service (port 3004)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "eventServiceUrl",
+      "value": "http://localhost:3001",
+      "type": "string"
+    },
+    {
+      "key": "userServiceUrl",
+      "value": "http://localhost:3002",
+      "type": "string"
+    },
+    {
+      "key": "bookingServiceUrl",
+      "value": "http://localhost:3003",
+      "type": "string"
+    },
+    {
+      "key": "paymentServiceUrl",
+      "value": "http://localhost:3004",
+      "type": "string"
+    },
+    {
+      "key": "jwtToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Event Service",
+      "description": "Endpoints for managing events (port 3001)",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{eventServiceUrl}}/health",
+              "host": ["{{eventServiceUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Check if the Event Service is running."
+          },
+          "response": [
+            {
+              "name": "Health Check - OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"status\": \"ok\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "List All Events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{eventServiceUrl}}/api/events",
+              "host": ["{{eventServiceUrl}}"],
+              "path": ["api", "events"]
+            },
+            "description": "Retrieve a list of all events. Results are cached in Redis for 60 seconds."
+          },
+          "response": [
+            {
+              "name": "List All Events - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "[\n  {\n    \"id\": 1,\n    \"title\": \"Tech Conference 2025\",\n    \"description\": \"Annual tech conference\",\n    \"venue\": \"Convention Center\",\n    \"date\": \"2025-09-15T09:00:00.000Z\",\n    \"total_tickets\": 500,\n    \"available_tickets\": 450,\n    \"price\": 99.99,\n    \"created_at\": \"2025-01-10T08:00:00.000Z\",\n    \"updated_at\": \"2025-01-10T08:00:00.000Z\"\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "Get Event by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{eventServiceUrl}}/api/events/1",
+              "host": ["{{eventServiceUrl}}"],
+              "path": ["api", "events", "1"]
+            },
+            "description": "Retrieve a single event by its ID."
+          },
+          "response": [
+            {
+              "name": "Get Event - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"id\": 1,\n  \"title\": \"Tech Conference 2025\",\n  \"description\": \"Annual tech conference\",\n  \"venue\": \"Convention Center\",\n  \"date\": \"2025-09-15T09:00:00.000Z\",\n  \"total_tickets\": 500,\n  \"available_tickets\": 450,\n  \"price\": 99.99,\n  \"created_at\": \"2025-01-10T08:00:00.000Z\",\n  \"updated_at\": \"2025-01-10T08:00:00.000Z\"\n}"
+            },
+            {
+              "name": "Get Event - Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"error\": \"Event not found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Tech Conference 2025\",\n  \"description\": \"Annual tech conference featuring industry leaders\",\n  \"venue\": \"Convention Center\",\n  \"date\": \"2025-09-15T09:00:00.000Z\",\n  \"total_tickets\": 500,\n  \"price\": 99.99\n}"
+            },
+            "url": {
+              "raw": "{{eventServiceUrl}}/api/events",
+              "host": ["{{eventServiceUrl}}"],
+              "path": ["api", "events"]
+            },
+            "description": "Create a new event. Required fields: title, date, total_tickets, price."
+          },
+          "response": [
+            {
+              "name": "Create Event - Success",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"id\": 1,\n  \"title\": \"Tech Conference 2025\",\n  \"description\": \"Annual tech conference featuring industry leaders\",\n  \"venue\": \"Convention Center\",\n  \"date\": \"2025-09-15T09:00:00.000Z\",\n  \"total_tickets\": 500,\n  \"available_tickets\": 500,\n  \"price\": 99.99,\n  \"created_at\": \"2025-01-10T08:00:00.000Z\",\n  \"updated_at\": \"2025-01-10T08:00:00.000Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Event",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Tech Conference 2025 - Updated\",\n  \"price\": 129.99\n}"
+            },
+            "url": {
+              "raw": "{{eventServiceUrl}}/api/events/1",
+              "host": ["{{eventServiceUrl}}"],
+              "path": ["api", "events", "1"]
+            },
+            "description": "Update an existing event. All fields are optional."
+          },
+          "response": [
+            {
+              "name": "Update Event - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"id\": 1,\n  \"title\": \"Tech Conference 2025 - Updated\",\n  \"description\": \"Annual tech conference featuring industry leaders\",\n  \"venue\": \"Convention Center\",\n  \"date\": \"2025-09-15T09:00:00.000Z\",\n  \"total_tickets\": 500,\n  \"available_tickets\": 500,\n  \"price\": 129.99,\n  \"created_at\": \"2025-01-10T08:00:00.000Z\",\n  \"updated_at\": \"2025-01-10T09:00:00.000Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete Event",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{eventServiceUrl}}/api/events/1",
+              "host": ["{{eventServiceUrl}}"],
+              "path": ["api", "events", "1"]
+            },
+            "description": "Delete an event by its ID."
+          },
+          "response": [
+            {
+              "name": "Delete Event - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"message\": \"Event deleted successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Check Ticket Availability",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{eventServiceUrl}}/api/events/1/availability",
+              "host": ["{{eventServiceUrl}}"],
+              "path": ["api", "events", "1", "availability"]
+            },
+            "description": "Check the ticket availability for a specific event."
+          },
+          "response": [
+            {
+              "name": "Availability - Available",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"id\": 1,\n  \"title\": \"Tech Conference 2025\",\n  \"available_tickets\": 450,\n  \"total_tickets\": 500,\n  \"is_available\": true\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "User Service",
+      "description": "Endpoints for user registration, authentication, and management (port 3002)",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{userServiceUrl}}/health",
+              "host": ["{{userServiceUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Check if the User Service is running."
+          },
+          "response": [
+            {
+              "name": "Health Check - OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"status\": \"ok\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"securepassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{userServiceUrl}}/api/users/register",
+              "host": ["{{userServiceUrl}}"],
+              "path": ["api", "users", "register"]
+            },
+            "description": "Register a new user. Required fields: name, email, password."
+          },
+          "response": [
+            {
+              "name": "Register - Success",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"id\": 1,\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"role\": \"user\",\n  \"created_at\": \"2025-01-10T08:00:00.000Z\",\n  \"updated_at\": \"2025-01-10T08:00:00.000Z\"\n}"
+            },
+            {
+              "name": "Register - Email Already Exists",
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"error\": \"Email already registered\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"securepassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{userServiceUrl}}/api/users/login",
+              "host": ["{{userServiceUrl}}"],
+              "path": ["api", "users", "login"]
+            },
+            "description": "Login with email and password. Returns a JWT token valid for 24 hours. Save the token in the jwtToken collection variable to use with authenticated endpoints."
+          },
+          "response": [
+            {
+              "name": "Login - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"user\": {\n    \"id\": 1,\n    \"name\": \"John Doe\",\n    \"email\": \"john@example.com\",\n    \"role\": \"user\"\n  }\n}"
+            },
+            {
+              "name": "Login - Invalid Credentials",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"error\": \"Invalid credentials\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{userServiceUrl}}/api/users/profile",
+              "host": ["{{userServiceUrl}}"],
+              "path": ["api", "users", "profile"]
+            },
+            "description": "Get the profile of the currently authenticated user. Requires a valid JWT token."
+          },
+          "response": [
+            {
+              "name": "Get Profile - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"id\": 1,\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"role\": \"user\",\n  \"created_at\": \"2025-01-10T08:00:00.000Z\",\n  \"updated_at\": \"2025-01-10T08:00:00.000Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "List All Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{userServiceUrl}}/api/users",
+              "host": ["{{userServiceUrl}}"],
+              "path": ["api", "users"]
+            },
+            "description": "Retrieve a list of all registered users."
+          },
+          "response": [
+            {
+              "name": "List Users - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "[\n  {\n    \"id\": 1,\n    \"name\": \"John Doe\",\n    \"email\": \"john@example.com\",\n    \"role\": \"user\",\n    \"created_at\": \"2025-01-10T08:00:00.000Z\",\n    \"updated_at\": \"2025-01-10T08:00:00.000Z\"\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{userServiceUrl}}/api/users/1",
+              "host": ["{{userServiceUrl}}"],
+              "path": ["api", "users", "1"]
+            },
+            "description": "Retrieve a user by their ID."
+          },
+          "response": [
+            {
+              "name": "Get User - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"id\": 1,\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"role\": \"user\",\n  \"created_at\": \"2025-01-10T08:00:00.000Z\",\n  \"updated_at\": \"2025-01-10T08:00:00.000Z\"\n}"
+            },
+            {
+              "name": "Get User - Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"error\": \"User not found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Updated\"\n}"
+            },
+            "url": {
+              "raw": "{{userServiceUrl}}/api/users/1",
+              "host": ["{{userServiceUrl}}"],
+              "path": ["api", "users", "1"]
+            },
+            "description": "Update a user's details. Requires authentication. Users can only update their own profile; admins can update any user."
+          },
+          "response": [
+            {
+              "name": "Update User - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"id\": 1,\n  \"name\": \"John Updated\",\n  \"email\": \"john@example.com\",\n  \"role\": \"user\",\n  \"created_at\": \"2025-01-10T08:00:00.000Z\",\n  \"updated_at\": \"2025-01-10T09:00:00.000Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{userServiceUrl}}/api/users/1",
+              "host": ["{{userServiceUrl}}"],
+              "path": ["api", "users", "1"]
+            },
+            "description": "Delete a user account. Requires authentication. Users can only delete their own account; admins can delete any user."
+          },
+          "response": [
+            {
+              "name": "Delete User - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"message\": \"User deleted successfully.\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Booking Service",
+      "description": "Endpoints for managing ticket bookings (port 3003)",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{bookingServiceUrl}}/health",
+              "host": ["{{bookingServiceUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Check if the Booking Service is running."
+          },
+          "response": [
+            {
+              "name": "Health Check - OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"status\": \"ok\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "List All Bookings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{bookingServiceUrl}}/api/bookings",
+              "host": ["{{bookingServiceUrl}}"],
+              "path": ["api", "bookings"]
+            },
+            "description": "Retrieve a list of all bookings."
+          },
+          "response": [
+            {
+              "name": "List Bookings - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "[\n  {\n    \"id\": 1,\n    \"user_id\": 1,\n    \"event_id\": 1,\n    \"tickets\": 2,\n    \"total_amount\": 199.98,\n    \"status\": \"pending\",\n    \"created_at\": \"2025-01-10T08:30:00.000Z\",\n    \"updated_at\": \"2025-01-10T08:30:00.000Z\"\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "Get Booking by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{bookingServiceUrl}}/api/bookings/1",
+              "host": ["{{bookingServiceUrl}}"],
+              "path": ["api", "bookings", "1"]
+            },
+            "description": "Retrieve a single booking by its ID."
+          },
+          "response": [
+            {
+              "name": "Get Booking - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"id\": 1,\n  \"user_id\": 1,\n  \"event_id\": 1,\n  \"tickets\": 2,\n  \"total_amount\": 199.98,\n  \"status\": \"pending\",\n  \"created_at\": \"2025-01-10T08:30:00.000Z\",\n  \"updated_at\": \"2025-01-10T08:30:00.000Z\"\n}"
+            },
+            {
+              "name": "Get Booking - Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"error\": \"Booking not found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Booking",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 1,\n  \"event_id\": 1,\n  \"tickets\": 2\n}"
+            },
+            "url": {
+              "raw": "{{bookingServiceUrl}}/api/bookings",
+              "host": ["{{bookingServiceUrl}}"],
+              "path": ["api", "bookings"]
+            },
+            "description": "Create a new booking. The service validates the user (via User Service) and event availability (via Event Service) before creating the booking. The total_amount is calculated automatically based on the event price."
+          },
+          "response": [
+            {
+              "name": "Create Booking - Success",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"id\": 1,\n  \"user_id\": 1,\n  \"event_id\": 1,\n  \"tickets\": 2,\n  \"total_amount\": 199.98,\n  \"status\": \"pending\",\n  \"created_at\": \"2025-01-10T08:30:00.000Z\",\n  \"updated_at\": \"2025-01-10T08:30:00.000Z\"\n}"
+            },
+            {
+              "name": "Create Booking - Bad Request",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"error\": \"user_id, event_id, and tickets are required and must be positive integers\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Booking Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"confirmed\"\n}"
+            },
+            "url": {
+              "raw": "{{bookingServiceUrl}}/api/bookings/1/status",
+              "host": ["{{bookingServiceUrl}}"],
+              "path": ["api", "bookings", "1", "status"]
+            },
+            "description": "Update the status of a booking. Valid statuses: pending, confirmed, cancelled."
+          },
+          "response": [
+            {
+              "name": "Update Status - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"id\": 1,\n  \"user_id\": 1,\n  \"event_id\": 1,\n  \"tickets\": 2,\n  \"total_amount\": 199.98,\n  \"status\": \"confirmed\",\n  \"created_at\": \"2025-01-10T08:30:00.000Z\",\n  \"updated_at\": \"2025-01-10T09:00:00.000Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Cancel Booking",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{bookingServiceUrl}}/api/bookings/1",
+              "host": ["{{bookingServiceUrl}}"],
+              "path": ["api", "bookings", "1"]
+            },
+            "description": "Cancel a booking. Sets the booking status to 'cancelled' (soft delete)."
+          },
+          "response": [
+            {
+              "name": "Cancel Booking - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"message\": \"Booking cancelled successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Bookings by User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{bookingServiceUrl}}/api/bookings/user/1",
+              "host": ["{{bookingServiceUrl}}"],
+              "path": ["api", "bookings", "user", "1"]
+            },
+            "description": "Retrieve all bookings for a specific user, sorted by creation date (newest first)."
+          },
+          "response": [
+            {
+              "name": "User Bookings - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "[\n  {\n    \"id\": 1,\n    \"user_id\": 1,\n    \"event_id\": 1,\n    \"tickets\": 2,\n    \"total_amount\": 199.98,\n    \"status\": \"pending\",\n    \"created_at\": \"2025-01-10T08:30:00.000Z\",\n    \"updated_at\": \"2025-01-10T08:30:00.000Z\"\n  }\n]"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Payment Service",
+      "description": "Endpoints for managing payments (port 3004)",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{paymentServiceUrl}}/health",
+              "host": ["{{paymentServiceUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Check if the Payment Service is running."
+          },
+          "response": [
+            {
+              "name": "Health Check - OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"status\": \"ok\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "List All Payments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{paymentServiceUrl}}/api/payments",
+              "host": ["{{paymentServiceUrl}}"],
+              "path": ["api", "payments"]
+            },
+            "description": "Retrieve a list of all payments."
+          },
+          "response": [
+            {
+              "name": "List Payments - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "[\n  {\n    \"id\": 1,\n    \"bookingId\": 1,\n    \"userId\": 1,\n    \"amount\": 199.98,\n    \"status\": \"pending\",\n    \"paymentMethod\": \"credit_card\",\n    \"createdAt\": \"2025-01-10T08:35:00.000Z\",\n    \"updatedAt\": \"2025-01-10T08:35:00.000Z\"\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "Get Payment by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{paymentServiceUrl}}/api/payments/1",
+              "host": ["{{paymentServiceUrl}}"],
+              "path": ["api", "payments", "1"]
+            },
+            "description": "Retrieve a single payment by its ID."
+          },
+          "response": [
+            {
+              "name": "Get Payment - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"id\": 1,\n  \"bookingId\": 1,\n  \"userId\": 1,\n  \"amount\": 199.98,\n  \"status\": \"pending\",\n  \"paymentMethod\": \"credit_card\",\n  \"createdAt\": \"2025-01-10T08:35:00.000Z\",\n  \"updatedAt\": \"2025-01-10T08:35:00.000Z\"\n}"
+            },
+            {
+              "name": "Get Payment - Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"error\": \"Payment not found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookingId\": 1,\n  \"userId\": 1,\n  \"amount\": 199.98,\n  \"status\": \"pending\",\n  \"paymentMethod\": \"credit_card\"\n}"
+            },
+            "url": {
+              "raw": "{{paymentServiceUrl}}/api/payments",
+              "host": ["{{paymentServiceUrl}}"],
+              "path": ["api", "payments"]
+            },
+            "description": "Create a new payment record."
+          },
+          "response": [
+            {
+              "name": "Create Payment - Success",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"id\": 1,\n  \"bookingId\": 1,\n  \"userId\": 1,\n  \"amount\": 199.98,\n  \"status\": \"pending\",\n  \"paymentMethod\": \"credit_card\",\n  \"createdAt\": \"2025-01-10T08:35:00.000Z\",\n  \"updatedAt\": \"2025-01-10T08:35:00.000Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Payment Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\"\n}"
+            },
+            "url": {
+              "raw": "{{paymentServiceUrl}}/api/payments/1/status",
+              "host": ["{{paymentServiceUrl}}"],
+              "path": ["api", "payments", "1", "status"]
+            },
+            "description": "Update the status of a payment."
+          },
+          "response": [
+            {
+              "name": "Update Payment Status - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "{\n  \"id\": 1,\n  \"bookingId\": 1,\n  \"userId\": 1,\n  \"amount\": 199.98,\n  \"status\": \"completed\",\n  \"paymentMethod\": \"credit_card\",\n  \"createdAt\": \"2025-01-10T08:35:00.000Z\",\n  \"updatedAt\": \"2025-01-10T09:00:00.000Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Payments by Booking",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{paymentServiceUrl}}/api/payments/booking/1",
+              "host": ["{{paymentServiceUrl}}"],
+              "path": ["api", "payments", "booking", "1"]
+            },
+            "description": "Retrieve all payments associated with a specific booking ID."
+          },
+          "response": [
+            {
+              "name": "Booking Payments - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "[\n  {\n    \"id\": 1,\n    \"bookingId\": 1,\n    \"userId\": 1,\n    \"amount\": 199.98,\n    \"status\": \"pending\",\n    \"paymentMethod\": \"credit_card\",\n    \"createdAt\": \"2025-01-10T08:35:00.000Z\",\n    \"updatedAt\": \"2025-01-10T08:35:00.000Z\"\n  }\n]"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
