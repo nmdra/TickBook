@@ -31,8 +31,7 @@ const connectConsumer = async () => {
               [bookingId, userId, amount, 'pending', 'pending_selection']
             );
 
-            console.log(`Created pending payment for booking ${bookingId} (user: ${userId})`);
-            console.log(`Processed booking.created event for booking ${bookingId}`);
+            console.log(`Processed booking.created event for booking ${bookingId} (user: ${userId})`);
           } else {
             console.log(`Ignoring event of type: ${eventType}`);
           }
