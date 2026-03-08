@@ -14,42 +14,36 @@ variable "SHA_TAG" {
   default = ""
 }
 
+variable "BUILD_DATE" {
+  default = ""
+}
+
 group "default" {
   targets = ["event-service", "user-service", "booking-service", "payment-service"]
 }
 
-target "event-service" {
-  context    = "./event-service"
+target "services" {
+  name = "${service}"
+  
+  matrix = {
+    service = ["event-service", "user-service", "booking-service", "payment-service"]
+  }
+  
+  context    = "./${service}"
   dockerfile = "Dockerfile"
+  
   tags = compact([
-    "${REGISTRY}/${REPO}/event-service:${TAG}",
-    SHA_TAG != "" ? "${REGISTRY}/${REPO}/event-service:${SHA_TAG}" : "",
+    "${REGISTRY}/${REPO}/${service}:${TAG}",
+    SHA_TAG != "" ? "${REGISTRY}/${REPO}/${service}:${SHA_TAG}" : "",
   ])
-}
 
-target "user-service" {
-  context    = "./user-service"
-  dockerfile = "Dockerfile"
-  tags = compact([
-    "${REGISTRY}/${REPO}/user-service:${TAG}",
-    SHA_TAG != "" ? "${REGISTRY}/${REPO}/user-service:${SHA_TAG}" : "",
-  ])
-}
-
-target "booking-service" {
-  context    = "./booking-service"
-  dockerfile = "Dockerfile"
-  tags = compact([
-    "${REGISTRY}/${REPO}/booking-service:${TAG}",
-    SHA_TAG != "" ? "${REGISTRY}/${REPO}/booking-service:${SHA_TAG}" : "",
-  ])
-}
-
-target "payment-service" {
-  context    = "./payment-service"
-  dockerfile = "Dockerfile"
-  tags = compact([
-    "${REGISTRY}/${REPO}/payment-service:${TAG}",
-    SHA_TAG != "" ? "${REGISTRY}/${REPO}/payment-service:${SHA_TAG}" : "",
-  ])
+  # NEW: Add OCI standard metadata labels dynamically
+  labels = {
+    "org.opencontainers.image.title"       = "${service}"
+    "org.opencontainers.image.description" = "Docker image for ${service}"
+    "org.opencontainers.image.source"      = "https://github.com/${REPO}"
+    "org.opencontainers.image.revision"    = "${SHA_TAG}"
+    "org.opencontainers.image.created"     = "${BUILD_DATE}"
+    "org.opencontainers.image.version"     = "${TAG}"
+  }
 }
