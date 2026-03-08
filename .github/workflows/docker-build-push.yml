@@ -99,11 +99,12 @@ jobs:
           image: ghcr.io/${{ steps.vars.outputs.repo }}/${{ matrix.service }}:${{ steps.vars.outputs.sha_tag }}
           args: --file=${{ matrix.service }}/Dockerfile --sarif-file-output=snyk.sarif
 
-      - name: Upload result to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v4
+      - name: Save Snyk SARIF as an Artifact
+        uses: actions/upload-artifact@v4
         with:
-          sarif_file: snyk.sarif
-          category: snyk-${{ matrix.service }}
+          name: snyk-report-${{ matrix.service }}
+          path: snyk.sarif
+          retention-days: 2
 
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
