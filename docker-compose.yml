@@ -1,0 +1,152 @@
+version: "3.9"
+
+services:
+  # ─── Infrastructure ───
+  postgres-event:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: eventdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_event_data:/var/lib/postgresql/data
+
+  postgres-user:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: userdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - pg_user_data:/var/lib/postgresql/data
+
+  postgres-booking:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: bookingdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - pg_booking_data:/var/lib/postgresql/data
+
+  postgres-payment:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: paymentdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5436:5432"
+    volumes:
+      - pg_payment_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  # ─── Microservices ───
+  event-service:
+    build: ./event-service
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      DB_HOST: postgres-event
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: eventdb
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_BROKERS: kafka:29092
+    depends_on:
+      - postgres-event
+      - redis
+      - kafka
+
+  user-service:
+    build: ./user-service
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+      DB_HOST: postgres-user
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: userdb
+      KAFKA_BROKERS: kafka:29092
+      JWT_SECRET: demo-secret-change-in-production
+    depends_on:
+      - postgres-user
+      - kafka
+
+  booking-service:
+    build: ./booking-service
+    ports:
+      - "3003:3003"
+    environment:
+      PORT: 3003
+      DB_HOST: postgres-booking
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: bookingdb
+      KAFKA_BROKERS: kafka:29092
+      EVENT_SERVICE_URL: http://event-service:3001
+      USER_SERVICE_URL: http://user-service:3002
+    depends_on:
+      - postgres-booking
+      - kafka
+      - event-service
+      - user-service
+
+  payment-service:
+    build: ./payment-service
+    ports:
+      - "3004:3004"
+    environment:
+      PORT: 3004
+      DB_HOST: postgres-payment
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: paymentdb
+      KAFKA_BROKERS: kafka:29092
+      BOOKING_SERVICE_URL: http://booking-service:3003
+    depends_on:
+      - postgres-payment
+      - kafka
+      - booking-service
+
+volumes:
+  pg_event_data:
+  pg_user_data:
+  pg_booking_data:
+  pg_payment_data:
