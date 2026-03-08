@@ -1,22 +1,20 @@
-# Build output
-target/
+# Dependencies
+node_modules/
+.npm
 
 # Environment
 .env
 
-# IDE
-.idea/
-*.iml
-.vscode/
-*.swp
-*.swo
+# Logs
+*.log
+npm-debug.log*
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Maven
-pom.xml.tag
-pom.xml.releaseBackup
-pom.xml.versionsBackup
-pom.xml.next
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
