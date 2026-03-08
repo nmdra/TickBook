@@ -2,9 +2,12 @@ name: Docker Build and Push
 
 on:
   push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
+    branches:
+      - main
+      - Development
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build-and-push:
