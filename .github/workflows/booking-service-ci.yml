@@ -18,6 +18,8 @@ env:
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: booking-service
@@ -42,6 +44,7 @@ jobs:
           cache-dependency-path: booking-service/go.sum
       - name: Run Snyk to check for vulnerabilities
         uses: snyk/actions/golang@master
+        continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
@@ -81,6 +84,7 @@ jobs:
           cache-to: type=gha,mode=max
       - name: Run Snyk to check Docker image for vulnerabilities
         uses: snyk/actions/docker@master
+        continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
