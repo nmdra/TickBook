@@ -64,8 +64,10 @@ jobs:
           echo "sha_tag=sha-$(echo '${{ github.sha }}' | cut -c1-7)" >> $GITHUB_OUTPUT
           echo "repo=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
           
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "tag=${github.ref#refs/tags/}" >> $GITHUB_OUTPUT
+          GITHUB_REF="${{ github.ref }}"
+          
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           elif [[ "${{ github.event_name }}" == 'pull_request' ]]; then
             echo "tag=pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
           else
