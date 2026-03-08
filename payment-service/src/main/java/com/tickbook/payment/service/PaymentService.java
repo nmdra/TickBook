@@ -53,6 +53,10 @@ public class PaymentService {
     }
 
     public Payment updatePaymentStatus(Long id, String status) {
+        java.util.List<String> validStatuses = java.util.List.of("pending", "completed", "failed", "refunded");
+        if (!validStatuses.contains(status)) {
+            throw new IllegalArgumentException("Invalid status. Must be: pending, completed, failed, or refunded");
+        }
         Payment payment = paymentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Payment not found with id: " + id));
         payment.setStatus(status);

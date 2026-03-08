@@ -165,6 +165,12 @@ func UpdateBookingStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	validStatuses := map[string]bool{"pending": true, "confirmed": true, "cancelled": true}
+	if !validStatuses[req.Status] {
+		respondError(w, http.StatusBadRequest, "Invalid status. Must be: pending, confirmed, or cancelled")
+		return
+	}
+
 	var booking models.Booking
 	err = database.DB.QueryRow(
 		`UPDATE bookings SET status = $1, updated_at = $2 WHERE id = $3

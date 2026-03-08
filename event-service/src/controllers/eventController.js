@@ -81,6 +81,10 @@ const createEvent = async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields: title, date, total_tickets, price' });
     }
 
+    if (total_tickets <= 0 || price <= 0) {
+      return res.status(400).json({ error: 'total_tickets and price must be positive numbers' });
+    }
+
     const result = await pool.query(
       `INSERT INTO events (title, description, venue, date, total_tickets, available_tickets, price)
        VALUES ($1, $2, $3, $4, $5, $5, $6) RETURNING *`,
