@@ -1,0 +1,48 @@
+name: User Service CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "user-service/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "user-service/**"
+
+env:
+  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/tickbook-user-service
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: user-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: user-service/package-lock.json
+      - run: npm ci
+      - run: npm audit --audit-level=high || true
+
+  build-and-push:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: user-service
+          push: true
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:latest
+            ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
