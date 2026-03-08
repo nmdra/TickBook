@@ -122,18 +122,34 @@ const updateEvent = async (req, res) => {
       return res.status(404).json({ error: 'Event not found' });
     }
 
+    const newTotalTickets = total_tickets !== undefined ? total_tickets : existing.rows[0].total_tickets;
+    const newAvailableTickets = available_tickets !== undefined ? available_tickets : existing.rows[0].available_tickets;
+    const newPrice = price !== undefined ? price : existing.rows[0].price;
+
+    if (newTotalTickets <= 0 || newPrice <= 0) {
+      return res.status(400).json({ error: 'total_tickets and price must be positive numbers' });
+    }
+
+    if (newAvailableTickets < 0) {
+      return res.status(400).json({ error: 'available_tickets must not be negative' });
+    }
+
+    if (newAvailableTickets > newTotalTickets) {
+      return res.status(400).json({ error: 'available_tickets must not exceed total_tickets' });
+    }
+
     const result = await pool.query(
       `UPDATE events SET title = $1, description = $2, venue = $3, date = $4,
        total_tickets = $5, available_tickets = $6, price = $7, updated_at = NOW()
        WHERE id = $8 RETURNING *`,
       [
-        title || existing.rows[0].title,
+        title !== undefined ? title : existing.rows[0].title,
         description !== undefined ? description : existing.rows[0].description,
         venue !== undefined ? venue : existing.rows[0].venue,
-        date || existing.rows[0].date,
-        total_tickets || existing.rows[0].total_tickets,
-        available_tickets !== undefined ? available_tickets : existing.rows[0].available_tickets,
-        price || existing.rows[0].price,
+        date !== undefined ? date : existing.rows[0].date,
+        newTotalTickets,
+        newAvailableTickets,
+        newPrice,
         id,
       ]
     );
