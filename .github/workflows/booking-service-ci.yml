@@ -11,6 +11,7 @@ on:
     branches: [main, dev]
     paths:
       - "booking-service/**"
+  workflow_dispatch:
 
 env:
   DOCKER_IMAGE: ghcr.io/${{ github.repository_owner }}/tickbook-booking-service
@@ -35,7 +36,7 @@ jobs:
   build-and-push:
     needs: [lint-and-test]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       packages: write
     steps:
