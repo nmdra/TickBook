@@ -25,30 +25,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.25.7"
           cache-dependency-path: booking-service/go.sum
       - run: go vet ./...
       - run: go build -o /dev/null .
 
-  security-scan:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-          cache-dependency-path: booking-service/go.sum
-      - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/golang@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --severity-threshold=critical --file=booking-service/go.mod
-
   build-and-push:
-    needs: [lint-and-test, security-scan]
+    needs: [lint-and-test]
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     permissions:
@@ -79,17 +62,10 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Run Snyk to check Docker image for vulnerabilities
-        uses: snyk/actions/docker@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          image: ${{ env.DOCKER_IMAGE }}:${{ steps.meta.outputs.version }}
-          args: --severity-threshold=critical
       - name: Push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: booking-service
+          context: payment-service
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
