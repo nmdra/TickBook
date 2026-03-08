@@ -1,5 +1,4 @@
-target/
+node_modules
+npm-debug.log
 .env
 .git
-*.iml
-.idea/

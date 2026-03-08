@@ -1,6 +1,6 @@
 # TickBook
 
-A microservices-based event ticket booking system built with **Node.js**, **Go**, and **Java (Spring Boot)**. TickBook allows users to register, browse events, book tickets, and process payments — all through a distributed architecture that uses REST for synchronous calls and Apache Kafka for asynchronous event streaming.
+A microservices-based event ticket booking system built with **Node.js** and **Go**. TickBook allows users to register, browse events, book tickets, and process payments — all through a distributed architecture that uses REST for synchronous calls and Apache Kafka for asynchronous event streaming.
 
 ## Table of Contents
 
@@ -30,13 +30,13 @@ TickBook is a full-stack ticket booking platform composed of four independently 
 
 | Category | Technologies |
 |----------|-------------|
-| **Languages** | JavaScript (Node.js 20), Go 1.22+, Java 21 |
-| **Frameworks** | Express.js, gorilla/mux, Spring Boot 3.4 |
+| **Languages** | JavaScript (Node.js 20), Go 1.22+ |
+| **Frameworks** | Express.js, gorilla/mux |
 | **Databases** | PostgreSQL 17 |
 | **Caching** | Redis 7 |
 | **Messaging** | Apache Kafka (KRaft mode) |
 | **Authentication** | JWT (jsonwebtoken), bcryptjs |
-| **API Docs** | Swagger / OpenAPI 3.0 (swagger-jsdoc, swaggo, springdoc-openapi) |
+| **API Docs** | Swagger / OpenAPI 3.0 (swagger-jsdoc, swaggo) |
 | **Containerization** | Docker, Docker Compose |
 | **CI/CD** | GitHub Actions, GitHub Container Registry (GHCR) |
 
@@ -54,7 +54,7 @@ TickBook consists of four microservices that communicate via **REST** (synchrono
                                ▼                        ▼
                        ┌───────────────┐
                        │Payment Service│
-                       │ (Spring Boot) │
+                       │  (Node.js)    │
                        └───────────────┘
 ```
 
@@ -65,7 +65,7 @@ TickBook consists of four microservices that communicate via **REST** (synchrono
 | **Event Service** | Node.js / Express | 3001 | PostgreSQL + Redis | Manages events, caching with Redis |
 | **User Service** | Node.js / Express | 3002 | PostgreSQL | User registration, authentication (JWT) |
 | **Booking Service** | Go / gorilla/mux | 3003 | PostgreSQL | Booking management, REST calls to Event & User services |
-| **Payment Service** | Java / Spring Boot | 3004 | PostgreSQL | Payment processing, Kafka consumer for bookings |
+| **Payment Service** | Node.js / Express | 3004 | PostgreSQL | Payment processing, Kafka consumer for bookings |
 
 ### Inter-Service Communication
 
@@ -75,9 +75,8 @@ TickBook consists of four microservices that communicate via **REST** (synchrono
 ## Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/install/) (for containerized setup)
-- [Node.js 20+](https://nodejs.org/) & npm (for Event and User services)
+- [Node.js 20+](https://nodejs.org/) & npm (for Event, User, and Payment services)
 - [Go 1.22+](https://go.dev/dl/) (for Booking Service)
-- [Java 21](https://adoptium.net/) & [Maven 3.9+](https://maven.apache.org/) (for Payment Service)
 - [PostgreSQL 17](https://www.postgresql.org/download/) (if running locally without Docker)
 - [Redis 7](https://redis.io/download) (if running locally without Docker)
 - [Apache Kafka](https://kafka.apache.org/downloads) (if running locally without Docker)
@@ -134,9 +133,9 @@ go build -o booking-service .
 
 ```bash
 cd payment-service
-# Configure environment variables (see Environment Variables section)
-mvn package -DskipTests     # Build the JAR
-java -jar target/*.jar      # Start the service
+cp .env.example .env        # Edit .env with your local settings
+npm ci                      # Install dependencies
+npm start                   # Start the service
 ```
 
 ## Docker Usage
@@ -190,7 +189,7 @@ docker run -p 3001:3001 \
 | Event Service | http://localhost:3001 | http://localhost:3001/api-docs |
 | User Service | http://localhost:3002 | http://localhost:3002/api-docs |
 | Booking Service | http://localhost:3003 | http://localhost:3003/swagger/ |
-| Payment Service | http://localhost:3004 | http://localhost:3004/swagger-ui.html |
+| Payment Service | http://localhost:3004 | http://localhost:3004/api-docs |
 
 ## API Documentation
 
@@ -507,13 +506,13 @@ Response `201 Created`:
 ```json
 {
   "id": 1,
-  "bookingId": 1,
-  "userId": 1,
-  "amount": 199.98,
+  "booking_id": 1,
+  "user_id": 1,
+  "amount": "199.98",
   "status": "pending",
-  "paymentMethod": "credit_card",
-  "createdAt": "2025-01-10T08:35:00.000Z",
-  "updatedAt": "2025-01-10T08:35:00.000Z"
+  "payment_method": "credit_card",
+  "created_at": "2025-01-10T08:35:00.000Z",
+  "updated_at": "2025-01-10T08:35:00.000Z"
 }
 ```
 
@@ -644,7 +643,7 @@ TickBook/
 ├── event-service/          # Node.js – Event management
 ├── user-service/           # Node.js – User auth & management
 ├── booking-service/        # Go – Booking management
-├── payment-service/        # Spring Boot – Payment processing
+├── payment-service/        # Node.js – Payment processing
 ├── postman/                # Postman API collection
 ├── docker-compose.yml      # Local development orchestration
 └── .github/workflows/      # CI/CD pipelines
