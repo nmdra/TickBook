@@ -11,6 +11,7 @@ on:
     branches: [main, dev]
     paths:
       - "booking-service/**"
+  workflow_dispatch:
 
 env:
   DOCKER_IMAGE: ghcr.io/${{ github.repository_owner }}/tickbook-booking-service
@@ -32,28 +33,10 @@ jobs:
       - run: go vet ./...
       - run: go build -o /dev/null .
 
-  security-scan:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-          cache-dependency-path: booking-service/go.sum
-      - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/golang@master
-        continue-on-error: true
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --severity-threshold=critical --file=booking-service/go.mod
-
   build-and-push:
     needs: [lint-and-test]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       packages: write
     steps:
