@@ -15,6 +15,10 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+app.get('/', (req, res) => {
+  res.json({ service: 'user-service', status: 'running' });
+});
+
 app.listen(PORT, () => {
   console.log(`User Service running on port ${PORT}`);
 });
