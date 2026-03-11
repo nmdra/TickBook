@@ -12,6 +12,10 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 const startServer = async () => {
   try {
     await initUsersTable();
