@@ -1,11 +1,10 @@
 {
   "name": "user-service",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Day 1 baseline for user-service",
+  "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "start": "node src/index.js"
   },
   "keywords": [],
   "author": "",
@@ -19,11 +18,6 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "kafkajs": "^2.2.4",
-    "pg": "^8.13.3",
-    "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.9"
+    "pg": "^8.13.3"
   }
 }

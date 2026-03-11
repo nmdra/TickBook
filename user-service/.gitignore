@@ -1,20 +1,2 @@
-# Dependencies
-node_modules/
-.npm
-
-# Environment
+node_modules
 .env
-
-# Logs
-*.log
-npm-debug.log*
-
-# OS
-.DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
