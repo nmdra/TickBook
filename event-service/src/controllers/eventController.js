@@ -55,7 +55,7 @@ const getEventById = async (req, res) => {
     const result = await pool.query('SELECT * FROM events WHERE id = $1', [id]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Event not found' });
+      return res.status(404).json({ error: 'Event not found:' });
     }
 
     if (redis) {
@@ -69,7 +69,7 @@ const getEventById = async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error fetching event:', err.message);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error:' });
   }
 };
 
@@ -99,7 +99,7 @@ const createEvent = async (req, res) => {
       try {
         await redis.del('events:all');
       } catch (err) {
-        console.warn('Redis invalidation error:', err.message);
+        console.warn('Redis invalidation error', err.message);
       }
     }
 
@@ -108,7 +108,7 @@ const createEvent = async (req, res) => {
     res.status(201).json(event);
   } catch (err) {
     console.error('Error creating event:', err.message);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error:' });
   }
 };
 
@@ -119,7 +119,7 @@ const updateEvent = async (req, res) => {
 
     const existing = await pool.query('SELECT * FROM events WHERE id = $1', [id]);
     if (existing.rows.length === 0) {
-      return res.status(404).json({ error: 'Event not found' });
+      return res.status(404).json({ error: 'Event not found:' });
     }
 
     const newTotalTickets = total_tickets !== undefined ? total_tickets : existing.rows[0].total_tickets;
