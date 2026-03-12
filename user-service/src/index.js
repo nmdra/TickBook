@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const { initUsersTable } = require('./config/db');
+const { connectDB, initUsersTable } = require('./config/db');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -18,10 +18,10 @@ app.get('/health', (req, res) => {
 
 const startServer = async () => {
   try {
+    await connectDB();
     await initUsersTable();
-    console.log('Users table is ready');
   } catch (err) {
-    console.error('Failed to initialize database table:', err.message);
+    console.error('Failed to initialize database:', err.message);
     process.exit(1);
   }
 

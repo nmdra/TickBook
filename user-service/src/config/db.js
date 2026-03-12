@@ -8,6 +8,11 @@ const pool = new Pool({
   database: process.env.DB_NAME || 'userdb',
 });
 
+const connectDB = async () => {
+  await pool.query('SELECT 1');
+  console.log('Connected to PostgreSQL');
+};
+
 const initUsersTable = async () => {
   const createTableQuery = `
     CREATE TABLE IF NOT EXISTS users (
@@ -22,6 +27,7 @@ const initUsersTable = async () => {
   `;
 
   await pool.query(createTableQuery);
+  console.log('Users table is ready');
 };
 
-module.exports = { pool, initUsersTable };
+module.exports = { pool, connectDB, initUsersTable };
