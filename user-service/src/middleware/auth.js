@@ -1,6 +1,14 @@
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const SALT_ROUNDS = 10;
+
+const hashPassword = (password) => bcrypt.hash(password, SALT_ROUNDS);
+
+const comparePassword = (password, hashedPassword) => {
+  return bcrypt.compare(password, hashedPassword);
+};
 
 const authenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -25,4 +33,4 @@ const authorizeAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = { authenticate, authorizeAdmin };
+module.exports = { authenticate, authorizeAdmin, hashPassword, comparePassword };
