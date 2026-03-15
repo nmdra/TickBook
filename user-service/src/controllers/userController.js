@@ -1,6 +1,6 @@
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/db');
+const { hashPassword, comparePassword } = require('../middleware/auth');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -17,7 +17,7 @@ const register = async (req, res) => {
       return res.status(409).json({ error: 'Email already registered.' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await hashPassword(password);
     const result = await pool.query(
       'INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role, created_at, updated_at',
       [name, email, hashedPassword, role || 'user']
@@ -44,7 +44,7 @@ const login = async (req, res) => {
     }
 
     const user = result.rows[0];
-    const valid = await bcrypt.compare(password, user.password);
+    const valid = await comparePassword(password, user.password);
     if (!valid) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
