@@ -14,8 +14,18 @@ const connectConsumer = async () => {
 
     await consumer.run({
       eachMessage: async ({ topic, partition, message }) => {
-        const value = message.value.toString();
-        console.log(`[Kafka] Received message on "${topic}" (partition ${partition}):`, value);
+        const rawValue = message.value.toString();
+
+        try {
+          const payload = JSON.parse(rawValue);
+          const eventType = payload.event_type || payload.type || 'unknown';
+          console.log(
+            `[Kafka] Received ${eventType} on "${topic}" (partition ${partition}):`,
+            payload
+          );
+        } catch (err) {
+          console.warn(`[Kafka] Ignoring malformed message on "${topic}":`, rawValue);
+        }
       },
     });
 

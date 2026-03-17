@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const { connectDB, initUsersTable } = require('./config/db');
+const { connectConsumer, disconnectConsumer } = require('./config/kafka');
 const userRoutes = require('./routes/userRoutes');
 
 const app = express();
@@ -31,7 +32,19 @@ const startServer = async () => {
   app.listen(PORT, () => {
     console.log(`User Service running on port ${PORT}`);
   });
+
+  connectConsumer();
 };
+
+process.on('SIGTERM', async () => {
+  await disconnectConsumer();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  await disconnectConsumer();
+  process.exit(0);
+});
 
 startServer();
 

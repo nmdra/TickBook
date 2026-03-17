@@ -17,6 +17,7 @@
     "express": "^4.21.2",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
+    "kafkajs": "^2.2.4",
     "pg": "^8.13.3"
   }
 }
