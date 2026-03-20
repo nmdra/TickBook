@@ -27,6 +27,7 @@ const startServer = async () => {
   try {
     await connectDB();
     await initUsersTable();
+    await connectConsumer();
   } catch (err) {
     console.error('Failed to initialize database:', err.message);
     process.exit(1);
@@ -36,16 +37,16 @@ const startServer = async () => {
     console.log(`User Service running on port ${PORT}`);
     console.log(`Swagger docs available at http://localhost:${PORT}/api-docs`);
   });
-
-  connectConsumer();
 };
 
 process.on('SIGTERM', async () => {
+  console.log('SIGTERM received. Shutting down gracefully...');
   await disconnectConsumer();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
+  console.log('SIGINT received. Shutting down gracefully...');
   await disconnectConsumer();
   process.exit(0);
 });
