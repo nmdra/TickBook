@@ -4,10 +4,10 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const swaggerUi = require('swagger-ui-express');
-const { connectDB, initUsersTable } = require('./config/db');
+const swaggerSpec = require('./swagger');
+const { initDB } = require('./config/db');
 const { connectConsumer, disconnectConsumer } = require('./config/kafka');
 const userRoutes = require('./routes/userRoutes');
-const swaggerSpec = require('./swagger');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -17,21 +17,32 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-app.use('/api/users', userRoutes);
 
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: Health check
+ *     responses:
+ *       200:
+ *         description: Service is healthy
+ */
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-const startServer = async () => {
+app.use('/api/users', userRoutes);
+
+const start = async () => {
   try {
-    await connectDB();
-    await initUsersTable();
-    await connectConsumer();
+    await initDB();
+    console.log('Database connected and initialized');
   } catch (err) {
-    console.error('Failed to initialize database:', err.message);
+    console.error('Database initialization failed:', err.message);
     process.exit(1);
   }
+
+  connectConsumer();
 
   app.listen(PORT, () => {
     console.log(`User Service running on port ${PORT}`);
@@ -51,6 +62,6 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-startServer();
+start();
 
 module.exports = app;
