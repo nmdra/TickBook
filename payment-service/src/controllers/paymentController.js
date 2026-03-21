@@ -1,29 +1,185 @@
-const { pool } = require('../config/db');
+const { getStripeClient, isStripeConfigured } = require('../config/stripe');
+const { getBookingById, updateBookingStatus } = require('../services/bookingService');
+const {
+  DEFAULT_CURRENCY,
+  VALID_STATUSES,
+  createOrUpdatePendingPayment,
+  getAllPayments: getAllPaymentRecords,
+  getLatestPaymentByBookingId,
+  getPaymentById: getPaymentRecordById,
+  getPaymentByStripePaymentIntentId,
+  getPaymentByStripeSessionId,
+  getPaymentsByBookingId: getPaymentRecordsByBookingId,
+  normalizeCurrency,
+  setPaymentStateById,
+  updatePaymentStatusById,
+} = require('../services/paymentService');
 
-const BOOKING_SERVICE_URL = process.env.BOOKING_SERVICE_URL || 'http://localhost:3003';
-const VALID_STATUSES = ['pending', 'completed', 'failed', 'refunded'];
+const SERVICE_PORT = process.env.PORT || 3004;
+const DEFAULT_SUCCESS_URL = `http://localhost:${SERVICE_PORT}/api/payments/stripe/success?session_id={CHECKOUT_SESSION_ID}`;
+const DEFAULT_CANCEL_URL = `http://localhost:${SERVICE_PORT}/api/payments/stripe/cancel?session_id={CHECKOUT_SESSION_ID}`;
 
-const validateBookingExists = async (bookingId) => {
-  if (!bookingId) {
-    throw new Error('Booking ID is required');
+const ensureUrlContainsSessionId = (url, fallbackUrl) => {
+  const resolved = (url && String(url).trim()) || fallbackUrl;
+  if (resolved.includes('{CHECKOUT_SESSION_ID}')) {
+    return resolved;
   }
 
+  const separator = resolved.includes('?') ? '&' : '?';
+  return `${resolved}${separator}session_id={CHECKOUT_SESSION_ID}`;
+};
+
+const toStripeAmount = (amount) => {
+  const parsed = Number(amount);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error('Payment amount must be greater than zero');
+  }
+
+  return Math.round(parsed * 100);
+};
+
+const getStripeSessionUrls = (requestBody = {}) => ({
+  successUrl: ensureUrlContainsSessionId(
+    requestBody.successUrl || process.env.STRIPE_SUCCESS_URL,
+    DEFAULT_SUCCESS_URL
+  ),
+  cancelUrl: ensureUrlContainsSessionId(
+    requestBody.cancelUrl || process.env.STRIPE_CANCEL_URL,
+    DEFAULT_CANCEL_URL
+  ),
+});
+
+const syncBookingConfirmation = async (payment) => {
   try {
-    const url = `${BOOKING_SERVICE_URL}/api/bookings/${bookingId}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Booking not found with id: ${bookingId}`);
-    }
+    await updateBookingStatus(payment.booking_id, 'confirmed');
   } catch (err) {
-    console.warn(`Could not validate booking ${bookingId}: ${err.message}`);
-    throw new Error(`Booking validation failed for id: ${bookingId}`);
+    console.warn(
+      `Payment ${payment.id} completed but booking ${payment.booking_id} confirmation failed: ${err.message}`
+    );
   }
+};
+
+const resolvePaymentFromStripeSession = async (session) => {
+  const metadataPaymentId = Number(session.metadata?.paymentId);
+  const metadataBookingId = Number(session.metadata?.bookingId);
+
+  let payment = null;
+
+  if (metadataPaymentId) {
+    payment = await getPaymentRecordById(metadataPaymentId);
+  }
+
+  if (!payment && session.id) {
+    payment = await getPaymentByStripeSessionId(session.id);
+  }
+
+  if (!payment && metadataBookingId) {
+    payment = await getLatestPaymentByBookingId(metadataBookingId);
+  }
+
+  if (!payment) {
+    throw new Error(`Payment record not found for Stripe session ${session.id}`);
+  }
+
+  return payment;
+};
+
+const resolvePaymentFromPaymentIntent = async (paymentIntent) => {
+  const metadataPaymentId = Number(paymentIntent.metadata?.paymentId);
+  const metadataBookingId = Number(paymentIntent.metadata?.bookingId);
+
+  let payment = null;
+
+  if (metadataPaymentId) {
+    payment = await getPaymentRecordById(metadataPaymentId);
+  }
+
+  if (!payment && paymentIntent.id) {
+    payment = await getPaymentByStripePaymentIntentId(paymentIntent.id);
+  }
+
+  if (!payment && metadataBookingId) {
+    payment = await getLatestPaymentByBookingId(metadataBookingId);
+  }
+
+  if (!payment) {
+    throw new Error(`Payment record not found for Stripe payment intent ${paymentIntent.id}`);
+  }
+
+  return payment;
+};
+
+const markStripeSessionCompleted = async (session) => {
+  const payment = await resolvePaymentFromStripeSession(session);
+
+  const updatedPayment = await updatePaymentStatusById(payment.id, 'completed', {
+    paymentMethod: 'stripe',
+    currency: session.currency || payment.currency || DEFAULT_CURRENCY,
+    stripeCheckoutSessionId: session.id,
+    stripePaymentIntentId:
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id || null,
+    stripeCustomerId:
+      typeof session.customer === 'string' ? session.customer : session.customer?.id || null,
+    checkoutUrl: session.url || payment.checkout_url || null,
+    failureReason: null,
+    providerResponse: session,
+    paidAt: new Date(),
+  });
+
+  if (updatedPayment) {
+    await syncBookingConfirmation(updatedPayment);
+  }
+
+  return updatedPayment;
+};
+
+const markStripeSessionFailed = async (session, failureReason) => {
+  const payment = await resolvePaymentFromStripeSession(session);
+
+  if (payment.status === 'completed') {
+    return payment;
+  }
+
+  return updatePaymentStatusById(payment.id, 'failed', {
+    paymentMethod: payment.payment_method === 'pending_selection' ? 'stripe' : payment.payment_method,
+    stripeCheckoutSessionId: session.id || payment.stripe_checkout_session_id || null,
+    stripePaymentIntentId:
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id || payment.stripe_payment_intent_id || null,
+    stripeCustomerId:
+      typeof session.customer === 'string' ? session.customer : session.customer?.id || null,
+    checkoutUrl: session.url || payment.checkout_url || null,
+    failureReason,
+    providerResponse: session,
+  });
+};
+
+const markPaymentIntentFailed = async (paymentIntent, failureReason) => {
+  const payment = await resolvePaymentFromPaymentIntent(paymentIntent);
+
+  if (payment.status === 'completed') {
+    return payment;
+  }
+
+  return updatePaymentStatusById(payment.id, 'failed', {
+    paymentMethod: payment.payment_method === 'pending_selection' ? 'stripe' : payment.payment_method,
+    stripePaymentIntentId: paymentIntent.id,
+    stripeCustomerId:
+      typeof paymentIntent.customer === 'string'
+        ? paymentIntent.customer
+        : paymentIntent.customer?.id || null,
+    failureReason,
+    providerResponse: paymentIntent,
+  });
 };
 
 const getAllPayments = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM payments ORDER BY created_at DESC');
-    res.json(result.rows);
+    const payments = await getAllPaymentRecords();
+    res.json(payments);
   } catch (err) {
     console.error('Error fetching payments:', err.message);
     res.status(500).json({ error: 'Internal server error' });
@@ -33,13 +189,13 @@ const getAllPayments = async (req, res) => {
 const getPaymentById = async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query('SELECT * FROM payments WHERE id = $1', [id]);
+    const payment = await getPaymentRecordById(id);
 
-    if (result.rows.length === 0) {
+    if (!payment) {
       return res.status(404).json({ error: 'Payment not found' });
     }
 
-    res.json(result.rows[0]);
+    res.json(payment);
   } catch (err) {
     console.error('Error fetching payment:', err.message);
     res.status(500).json({ error: 'Internal server error' });
@@ -48,29 +204,67 @@ const getPaymentById = async (req, res) => {
 
 const createPayment = async (req, res) => {
   try {
-    const { bookingId, userId, amount, status, paymentMethod } = req.body;
+    const body = req.body || {};
+    const { bookingId, status, paymentMethod, currency } = body;
 
-    await validateBookingExists(bookingId);
+    if (!bookingId) {
+      return res.status(400).json({ error: 'bookingId is required' });
+    }
 
     const paymentStatus = status || 'pending';
 
-    const result = await pool.query(
-      `INSERT INTO payments (booking_id, user_id, amount, status, payment_method)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [bookingId, userId, amount, paymentStatus, paymentMethod || null]
-    );
+    if (!VALID_STATUSES.includes(paymentStatus)) {
+      return res.status(400).json({
+        error: 'Invalid status. Must be: pending, completed, failed, or refunded',
+      });
+    }
 
-    res.status(201).json(result.rows[0]);
+    const booking = await getBookingById(bookingId);
+    if (booking.status === 'cancelled') {
+      return res.status(400).json({ error: 'Cannot create a payment for a cancelled booking' });
+    }
+
+    const payment = await createOrUpdatePendingPayment({
+      bookingId: booking.id,
+      userId: booking.user_id,
+      amount: booking.total_amount,
+      currency,
+      paymentMethod: paymentMethod || 'pending_selection',
+    });
+
+    const updatedPayment =
+      paymentStatus === 'pending'
+        ? await setPaymentStateById(payment.id, {
+            status: 'pending',
+            paymentMethod: paymentMethod || payment.payment_method,
+            currency: currency || payment.currency,
+            failureReason: null,
+            paidAt: null,
+          })
+        : await updatePaymentStatusById(payment.id, paymentStatus, {
+            paymentMethod: paymentMethod || payment.payment_method,
+            currency: currency || payment.currency,
+            paidAt: paymentStatus === 'completed' ? new Date() : null,
+            failureReason: paymentStatus === 'failed' ? 'Payment marked as failed manually' : null,
+          });
+
+    if (updatedPayment.status === 'completed') {
+      await syncBookingConfirmation(updatedPayment);
+    }
+
+    res.status(201).json(updatedPayment);
   } catch (err) {
     console.error('Error creating payment:', err.message);
-    res.status(500).json({ error: err.message });
+    const statusCode = err.message.includes('Booking') ? 400 : 500;
+    res.status(statusCode).json({ error: err.message });
   }
 };
 
 const updatePaymentStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const body = req.body || {};
+    const status = body.status?.trim();
 
     if (!status || !status.trim()) {
       return res.status(400).json({ error: 'Status is required' });
@@ -82,40 +276,271 @@ const updatePaymentStatus = async (req, res) => {
       });
     }
 
-    const result = await pool.query(
-      `UPDATE payments SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-      [status, id]
-    );
+    const updatedPayment = await updatePaymentStatusById(id, status, {
+      paidAt: status === 'completed' ? new Date() : status === 'pending' ? null : undefined,
+      failureReason:
+        status === 'failed'
+          ? body.failureReason || 'Payment marked as failed manually'
+          : status === 'completed'
+            ? null
+            : undefined,
+    });
 
-    if (result.rows.length === 0) {
+    if (!updatedPayment) {
       return res.status(404).json({ error: 'Payment not found' });
     }
 
-    res.json(result.rows[0]);
+    if (updatedPayment.status === 'completed') {
+      await syncBookingConfirmation(updatedPayment);
+    }
+
+    res.json(updatedPayment);
   } catch (err) {
     console.error('Error updating payment status:', err.message);
-    res.status(500).json({ error: 'Internal server error' });
+    const statusCode = err.message.startsWith('Invalid status') ? 400 : 500;
+    res.status(statusCode).json({ error: err.message });
   }
 };
 
 const getPaymentsByBookingId = async (req, res) => {
   try {
     const { bookingId } = req.params;
-    const result = await pool.query(
-      'SELECT * FROM payments WHERE booking_id = $1 ORDER BY created_at DESC',
-      [bookingId]
-    );
-    res.json(result.rows);
+    const payments = await getPaymentRecordsByBookingId(bookingId);
+    res.json(payments);
   } catch (err) {
     console.error('Error fetching payments by booking:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
 
+const createStripeCheckoutSession = async (req, res) => {
+  try {
+    if (!isStripeConfigured()) {
+      return res.status(503).json({ error: 'Stripe is not configured. Set STRIPE_SECRET_KEY first.' });
+    }
+
+    const body = req.body || {};
+    const { bookingId } = req.params;
+    const booking = await getBookingById(bookingId);
+    if (booking.status === 'cancelled') {
+      return res.status(400).json({ error: 'Cannot pay for a cancelled booking' });
+    }
+
+    const existingPayment = await createOrUpdatePendingPayment({
+      bookingId: booking.id,
+      userId: booking.user_id,
+      amount: booking.total_amount,
+      currency: body.currency,
+      paymentMethod: 'stripe',
+    });
+
+    if (existingPayment.status === 'completed') {
+      return res.status(409).json({
+        error: 'Payment for this booking is already completed',
+        payment: existingPayment,
+      });
+    }
+
+    const stripe = getStripeClient();
+    const currency = normalizeCurrency(body.currency || existingPayment.currency || DEFAULT_CURRENCY);
+    const { successUrl, cancelUrl } = getStripeSessionUrls(body);
+
+    const metadata = {
+      paymentId: String(existingPayment.id),
+      bookingId: String(existingPayment.booking_id),
+      userId: String(existingPayment.user_id),
+    };
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      client_reference_id: String(existingPayment.booking_id),
+      metadata,
+      payment_intent_data: {
+        metadata,
+      },
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency,
+            unit_amount: toStripeAmount(existingPayment.amount),
+            product_data: {
+              name: `TickBook booking #${existingPayment.booking_id}`,
+              description: `Payment for booking ${existingPayment.booking_id}`,
+            },
+          },
+        },
+      ],
+    });
+
+    const updatedPayment = await setPaymentStateById(existingPayment.id, {
+      status: 'pending',
+      paymentMethod: 'stripe',
+      currency,
+      stripeCheckoutSessionId: session.id,
+      checkoutUrl: session.url || null,
+      failureReason: null,
+      providerResponse: session,
+      paidAt: null,
+    });
+
+    res.status(201).json({
+      payment: updatedPayment,
+      checkoutUrl: session.url,
+      sessionId: session.id,
+    });
+  } catch (err) {
+    console.error('Error creating Stripe checkout session:', err.message);
+    const statusCode =
+      err.message.includes('Booking') || err.message.includes('Amount') ? 400 : 500;
+    res.status(statusCode).json({ error: err.message });
+  }
+};
+
+const handleStripeSuccess = async (req, res) => {
+  try {
+    if (!isStripeConfigured()) {
+      return res.status(503).json({ error: 'Stripe is not configured. Set STRIPE_SECRET_KEY first.' });
+    }
+
+    const sessionId = req.query.session_id;
+    if (!sessionId) {
+      return res.status(400).json({ error: 'session_id query parameter is required' });
+    }
+
+    const stripe = getStripeClient();
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['payment_intent'],
+    });
+
+    if (session.payment_status !== 'paid') {
+      const failedPayment = await markStripeSessionFailed(
+        session,
+        'Stripe redirected without a successful payment confirmation'
+      );
+
+      return res.status(400).json({
+        error: 'Payment is not marked as paid by Stripe',
+        payment: failedPayment,
+        stripeStatus: session.payment_status,
+      });
+    }
+
+    const updatedPayment = await markStripeSessionCompleted(session);
+
+    res.json({
+      message: 'Payment completed successfully',
+      payment: updatedPayment,
+    });
+  } catch (err) {
+    console.error('Error handling Stripe success redirect:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+const handleStripeCancel = async (req, res) => {
+  try {
+    if (!isStripeConfigured()) {
+      return res.status(503).json({ error: 'Stripe is not configured. Set STRIPE_SECRET_KEY first.' });
+    }
+
+    const sessionId = req.query.session_id;
+    if (!sessionId) {
+      return res.status(400).json({ error: 'session_id query parameter is required' });
+    }
+
+    const stripe = getStripeClient();
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['payment_intent'],
+    });
+
+    const updatedPayment = await markStripeSessionFailed(session, 'Customer cancelled Stripe checkout');
+
+    res.json({
+      message: 'Stripe checkout was cancelled',
+      payment: updatedPayment,
+    });
+  } catch (err) {
+    console.error('Error handling Stripe cancel redirect:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+const handleStripeWebhook = async (req, res) => {
+  if (!isStripeConfigured()) {
+    return res.status(503).json({ error: 'Stripe is not configured. Set STRIPE_SECRET_KEY first.' });
+  }
+
+  const stripe = getStripeClient();
+
+  let event;
+  try {
+    if (process.env.STRIPE_WEBHOOK_SECRET) {
+      const signature = req.headers['stripe-signature'];
+      if (!signature) {
+        return res.status(400).json({ error: 'Missing Stripe signature header' });
+      }
+
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        signature,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+    } else {
+      event = JSON.parse(req.body.toString('utf8'));
+    }
+  } catch (err) {
+    console.error('Stripe webhook verification failed:', err.message);
+    return res.status(400).json({ error: `Webhook error: ${err.message}` });
+  }
+
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed':
+      case 'checkout.session.async_payment_succeeded':
+        await markStripeSessionCompleted(event.data.object);
+        break;
+      case 'checkout.session.expired':
+        await markStripeSessionFailed(event.data.object, 'Stripe checkout session expired');
+        break;
+      case 'payment_intent.payment_failed':
+        await markPaymentIntentFailed(
+          event.data.object,
+          event.data.object.last_payment_error?.message || 'Stripe payment failed'
+        );
+        break;
+      case 'charge.refunded': {
+        const charge = event.data.object;
+        const payment = await getPaymentByStripePaymentIntentId(charge.payment_intent);
+        if (payment) {
+          await updatePaymentStatusById(payment.id, 'refunded', {
+            providerResponse: charge,
+            failureReason: null,
+          });
+        }
+        break;
+      }
+      default:
+        console.log(`Ignoring Stripe webhook event type: ${event.type}`);
+    }
+
+    return res.json({ received: true });
+  } catch (err) {
+    console.error('Error processing Stripe webhook:', err.message);
+    return res.status(500).json({ error: 'Failed to process Stripe webhook' });
+  }
+};
+
 module.exports = {
+  createPayment,
+  createStripeCheckoutSession,
   getAllPayments,
   getPaymentById,
-  createPayment,
-  updatePaymentStatus,
   getPaymentsByBookingId,
+  handleStripeCancel,
+  handleStripeSuccess,
+  handleStripeWebhook,
+  updatePaymentStatus,
 };
