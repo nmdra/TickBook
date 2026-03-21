@@ -4,6 +4,10 @@ const {
   getAllPayments,
   getPaymentById,
   createPayment,
+  createStripeCheckoutSession,
+  handleStripeCancel,
+  handleStripeSuccess,
+  handleStripeWebhook,
   updatePaymentStatus,
   getPaymentsByBookingId,
 } = require('../controllers/paymentController');
@@ -28,12 +32,37 @@ const {
  *           type: number
  *           format: float
  *           description: Payment amount
+ *         currency:
+ *           type: string
+ *           description: ISO currency code
  *         status:
  *           type: string
  *           description: Payment status (pending, completed, failed, refunded)
  *         payment_method:
  *           type: string
  *           description: Payment method
+ *         stripe_checkout_session_id:
+ *           type: string
+ *           nullable: true
+ *         stripe_payment_intent_id:
+ *           type: string
+ *           nullable: true
+ *         stripe_customer_id:
+ *           type: string
+ *           nullable: true
+ *         checkout_url:
+ *           type: string
+ *           nullable: true
+ *         failure_reason:
+ *           type: string
+ *           nullable: true
+ *         provider_response:
+ *           type: object
+ *           nullable: true
+ *         paid_at:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
  *         created_at:
  *           type: string
  *           format: date-time
@@ -44,16 +73,11 @@ const {
  *       type: object
  *       required:
  *         - bookingId
- *         - userId
- *         - amount
  *       properties:
  *         bookingId:
  *           type: integer
- *         userId:
- *           type: integer
- *         amount:
- *           type: number
- *           format: float
+ *         currency:
+ *           type: string
  *         status:
  *           type: string
  *         paymentMethod:
@@ -66,6 +90,29 @@ const {
  *         status:
  *           type: string
  *           enum: [pending, completed, failed, refunded]
+ *         failureReason:
+ *           type: string
+ *     StripeCheckoutSessionInput:
+ *       type: object
+ *       properties:
+ *         successUrl:
+ *           type: string
+ *           description: Optional override for Stripe redirect on success
+ *         cancelUrl:
+ *           type: string
+ *           description: Optional override for Stripe redirect on cancel
+ *         currency:
+ *           type: string
+ *           description: Optional ISO currency override
+ *     StripeCheckoutSessionResponse:
+ *       type: object
+ *       properties:
+ *         payment:
+ *           $ref: '#/components/schemas/Payment'
+ *         checkoutUrl:
+ *           type: string
+ *         sessionId:
+ *           type: string
  *     Error:
  *       type: object
  *       properties:
@@ -92,6 +139,128 @@ const {
  *         description: Internal server error
  */
 router.get('/', getAllPayments);
+
+/**
+ * @swagger
+ * /api/payments/booking/{bookingId}:
+ *   get:
+ *     summary: Get payments by booking ID
+ *     tags: [Payments]
+ *     parameters:
+ *       - in: path
+ *         name: bookingId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Booking ID
+ *     responses:
+ *       200:
+ *         description: List of payments for the booking
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Payment'
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/booking/:bookingId', getPaymentsByBookingId);
+
+/**
+ * @swagger
+ * /api/payments/booking/{bookingId}/checkout-session:
+ *   post:
+ *     summary: Create a Stripe Checkout session for a booking payment
+ *     tags: [Payments]
+ *     parameters:
+ *       - in: path
+ *         name: bookingId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Booking ID
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/StripeCheckoutSessionInput'
+ *     responses:
+ *       201:
+ *         description: Stripe Checkout session created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/StripeCheckoutSessionResponse'
+ *       400:
+ *         description: Invalid booking or amount
+ *       409:
+ *         description: Payment already completed
+ *       503:
+ *         description: Stripe is not configured
+ */
+router.post('/booking/:bookingId/checkout-session', createStripeCheckoutSession);
+
+/**
+ * @swagger
+ * /api/payments/stripe/success:
+ *   get:
+ *     summary: Handle Stripe success redirect and mark payment completed
+ *     tags: [Payments]
+ *     parameters:
+ *       - in: query
+ *         name: session_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Payment completed successfully
+ *       400:
+ *         description: Payment not completed or missing session ID
+ *       503:
+ *         description: Stripe is not configured
+ */
+router.get('/stripe/success', handleStripeSuccess);
+
+/**
+ * @swagger
+ * /api/payments/stripe/cancel:
+ *   get:
+ *     summary: Handle Stripe cancel redirect and mark payment failed
+ *     tags: [Payments]
+ *     parameters:
+ *       - in: query
+ *         name: session_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Stripe checkout cancelled
+ *       400:
+ *         description: Missing session ID
+ *       503:
+ *         description: Stripe is not configured
+ */
+router.get('/stripe/cancel', handleStripeCancel);
+
+/**
+ * @swagger
+ * /api/payments/webhook:
+ *   post:
+ *     summary: Receive Stripe webhook events
+ *     tags: [Payments]
+ *     responses:
+ *       200:
+ *         description: Webhook processed
+ *       400:
+ *         description: Invalid Stripe signature or payload
+ *       503:
+ *         description: Stripe is not configured
+ */
+router.post('/webhook', handleStripeWebhook);
 
 /**
  * @swagger
@@ -124,7 +293,7 @@ router.get('/:id', getPaymentById);
  * @swagger
  * /api/payments:
  *   post:
- *     summary: Create a new payment
+ *     summary: Create or sync a payment record for a booking
  *     tags: [Payments]
  *     requestBody:
  *       required: true
@@ -139,6 +308,8 @@ router.get('/:id', getPaymentById);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Payment'
+ *       400:
+ *         description: Invalid request
  *       500:
  *         description: Internal server error
  */
@@ -178,32 +349,5 @@ router.post('/', createPayment);
  *         description: Internal server error
  */
 router.put('/:id/status', updatePaymentStatus);
-
-/**
- * @swagger
- * /api/payments/booking/{bookingId}:
- *   get:
- *     summary: Get payments by booking ID
- *     tags: [Payments]
- *     parameters:
- *       - in: path
- *         name: bookingId
- *         required: true
- *         schema:
- *           type: integer
- *         description: Booking ID
- *     responses:
- *       200:
- *         description: List of payments for the booking
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Payment'
- *       500:
- *         description: Internal server error
- */
-router.get('/booking/:bookingId', getPaymentsByBookingId);
 
 module.exports = router;

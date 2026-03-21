@@ -1,4 +1,13 @@
-require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
+
+const envPath = path.resolve(__dirname, '..', '.env');
+const envExamplePath = path.resolve(__dirname, '..', '.env.example');
+
+dotenv.config({
+  path: fs.existsSync(envPath) ? envPath : envExamplePath,
+});
 
 const express = require('express');
 const cors = require('cors');
@@ -14,6 +23,7 @@ const PORT = process.env.PORT || 3004;
 
 app.use(helmet());
 app.use(cors());
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -42,12 +52,12 @@ const start = async () => {
     process.exit(1);
   }
 
-  connectConsumer();
-
   app.listen(PORT, () => {
     console.log(`Payment Service running on port ${PORT}`);
     console.log(`Swagger docs available at http://localhost:${PORT}/api-docs`);
   });
+
+  void connectConsumer();
 };
 
 process.on('SIGTERM', async () => {
