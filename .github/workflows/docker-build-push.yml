@@ -32,6 +32,8 @@ jobs:
               - 'booking-service/**'
             payment-service:
               - 'payment-service/**'
+            nginx-gateway:
+              - 'nginx/**'
 
   build-scan-push:
     name: Build & Scan - ${{ matrix.service }}
@@ -53,10 +55,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Resolve service paths
+        id: service-paths
+        run: |
+          if [[ "${{ matrix.service }}" == "nginx-gateway" ]]; then
+            echo "dockerfile=nginx/Dockerfile" >> $GITHUB_OUTPUT
+          else
+            echo "dockerfile=${{ matrix.service }}/Dockerfile" >> $GITHUB_OUTPUT
+          fi
+
       - name: Lint Dockerfile with Hadolint
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          dockerfile: ${{ matrix.service }}/Dockerfile
+          dockerfile: ${{ steps.service-paths.outputs.dockerfile }}
 
       - name: Set up build variables
         id: vars
@@ -99,7 +110,7 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           image: ghcr.io/${{ steps.vars.outputs.repo }}/${{ matrix.service }}:${{ steps.vars.outputs.sha_tag }}
-          args: --file=${{ matrix.service }}/Dockerfile --sarif-file-output=snyk.sarif
+          args: --file=${{ steps.service-paths.outputs.dockerfile }} --sarif-file-output=snyk.sarif
 
       - name: Save Snyk SARIF as an Artifact
         uses: actions/upload-artifact@v4
