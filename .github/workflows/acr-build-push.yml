@@ -57,7 +57,7 @@ jobs:
       - name: Set up tag variables
         id: vars
         run: |
-          echo "sha_tag=sha-$(echo '${{ github.sha }}' | cut -c1-7)" >> $GITHUB_OUTPUT
+          echo "sha_tag=sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
           echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           echo "repo=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
@@ -87,9 +87,20 @@ jobs:
           TAG: ${{ steps.vars.outputs.tag }}
           SHA_TAG: ${{ steps.vars.outputs.sha_tag }}
         run: |
-          docker buildx imagetools create \
-            --tag "${ACR_LOGIN_SERVER}/${ACR_REPOSITORY}/${SERVICE}:${TAG}" \
-            "ghcr.io/${GHCR_REPO}/${SERVICE}:${TAG}"
-          docker buildx imagetools create \
-            --tag "${ACR_LOGIN_SERVER}/${ACR_REPOSITORY}/${SERVICE}:${SHA_TAG}" \
-            "ghcr.io/${GHCR_REPO}/${SERVICE}:${SHA_TAG}"
+          for source_tag in "$TAG" "$SHA_TAG"; do
+            source_image="ghcr.io/${GHCR_REPO}/${SERVICE}:${source_tag}"
+            for attempt in {1..12}; do
+              if docker buildx imagetools inspect "$source_image" >/dev/null 2>&1; then
+                break
+              fi
+              if [[ "$attempt" -eq 12 ]]; then
+                echo "Source image not found: $source_image" >&2
+                exit 1
+              fi
+              sleep 10
+            done
+
+            docker buildx imagetools create \
+              --tag "${ACR_LOGIN_SERVER}/${ACR_REPOSITORY}/${SERVICE}:${source_tag}" \
+              "$source_image"
+          done
