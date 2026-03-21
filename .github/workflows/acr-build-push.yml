@@ -1,4 +1,4 @@
-name: ACR Build, Scan, and Push
+name: ACR Copy and Push
 
 on:
   push:
@@ -39,7 +39,7 @@ jobs:
             echo "changes=[]" >> $GITHUB_OUTPUT
           fi
 
-  build-scan-push:
+  copy-images:
     name: Copy to ACR - ${{ matrix.service }}
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.services != '[]' && needs.detect-changes.outputs.services != '' }}
