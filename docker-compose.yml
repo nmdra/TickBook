@@ -165,7 +165,7 @@ services:
       - "${GATEWAY_PORT:-8080}:80"
     environment:
       NGINX_HOST: ${NGINX_HOST:-localhost}
-      NGINX_PORT: 80
+      NGINX_PORT: ${NGINX_INTERNAL_PORT:-80}
       EVENT_SERVICE_URL: http://event-service:3001
       USER_SERVICE_URL: http://user-service:3002
       BOOKING_SERVICE_URL: http://booking-service:3003
