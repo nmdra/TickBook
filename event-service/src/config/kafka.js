@@ -1,4 +1,5 @@
 const { Kafka } = require('kafkajs');
+const logger = require('./logger');
 
 let producer = null;
 
@@ -13,9 +14,9 @@ const createKafkaProducer = async () => {
 
     producer = kafka.producer();
     await producer.connect();
-    console.log('Connected to Kafka');
+    logger.info('Connected to Kafka');
   } catch (err) {
-    console.warn('Failed to connect to Kafka:', err.message);
+    logger.warn('Failed to connect to Kafka', { error: err.message });
     producer = null;
   }
 
@@ -24,7 +25,7 @@ const createKafkaProducer = async () => {
 
 const publishEvent = async (topic, key, message) => {
   if (!producer) {
-    console.warn('Kafka producer not available, skipping publish');
+    logger.warn('Kafka producer not available, skipping publish');
     return;
   }
 
@@ -34,7 +35,7 @@ const publishEvent = async (topic, key, message) => {
       messages: [{ key, value: JSON.stringify(message) }],
     });
   } catch (err) {
-    console.warn('Failed to publish Kafka message:', err.message);
+    logger.warn('Failed to publish Kafka message', { error: err.message, topic, key });
   }
 };
 
@@ -43,7 +44,7 @@ const disconnectKafka = async () => {
     try {
       await producer.disconnect();
     } catch (err) {
-      console.warn('Error disconnecting Kafka:', err.message);
+      logger.warn('Error disconnecting Kafka', { error: err.message });
     }
   }
 };
