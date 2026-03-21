@@ -2,6 +2,7 @@ const { pool } = require('../config/db');
 const { getRedis } = require('../config/redis');
 const { publishEvent } = require('../config/kafka');
 const { validateEventCreate } = require('../validator/eventValidation');
+const logger = require('../config/logger');
 
 const CACHE_TTL = 60;
 
@@ -16,7 +17,7 @@ const getAllEvents = async (req, res) => {
           return res.json(JSON.parse(cached));
         }
       } catch (err) {
-        console.warn('Redis read error:', err.message);
+        logger.warn('Redis read error:', err.message);
       }
     }
 
@@ -26,13 +27,13 @@ const getAllEvents = async (req, res) => {
       try {
         await redis.set('events:all', JSON.stringify(result.rows), 'EX', CACHE_TTL);
       } catch (err) {
-        console.warn('Redis write error:', err.message);
+        logger.warn('Redis write error:', err.message);
       }
     }
 
     res.json(result.rows);
   } catch (err) {
-    console.error('Error fetching events:', err.message);
+    logger.error('Error fetching events:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -49,7 +50,7 @@ const getEventById = async (req, res) => {
           return res.json(JSON.parse(cached));
         }
       } catch (err) {
-        console.warn('Redis read error:', err.message);
+        logger.warn('Redis read error:', err.message);
       }
     }
 
@@ -63,13 +64,13 @@ const getEventById = async (req, res) => {
       try {
         await redis.set(`events:${id}`, JSON.stringify(result.rows[0]), 'EX', CACHE_TTL);
       } catch (err) {
-        console.warn('Redis write error:', err.message);
+        logger.warn('Redis write error:', err.message);
       }
     }
 
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('Error fetching event:', err.message);
+    logger.error('Error fetching event:', err.message);
     res.status(500).json({ error: 'Internal server error:' });
   }
 };
@@ -101,7 +102,7 @@ const createEvent = async (req, res) => {
       try {
         await redis.del('events:all');
       } catch (err) {
-        console.warn('Redis invalidation error', err.message);
+        logger.warn('Redis invalidation error:', err.message);
       }
     }
 
@@ -109,7 +110,7 @@ const createEvent = async (req, res) => {
 
     res.status(201).json(event);
   } catch (err) {
-    console.error('Error creating event:', err.message);
+    logger.error('Error creating event:', err.message);
     res.status(500).json({ error: 'Internal server error:' });
   }
 };
@@ -163,7 +164,7 @@ const updateEvent = async (req, res) => {
       try {
         await redis.del('events:all', `events:${id}`);
       } catch (err) {
-        console.warn('Redis invalidation error:', err.message);
+        logger.warn('Redis invalidation error:', err.message);
       }
     }
 
@@ -171,7 +172,7 @@ const updateEvent = async (req, res) => {
 
     res.json(event);
   } catch (err) {
-    console.error('Error updating event:', err.message);
+    logger.error('Error updating event:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -191,7 +192,7 @@ const deleteEvent = async (req, res) => {
       try {
         await redis.del('events:all', `events:${id}`);
       } catch (err) {
-        console.warn('Redis invalidation error:', err.message);
+        logger.warn('Redis invalidation error:', err.message);
       }
     }
 
@@ -199,7 +200,7 @@ const deleteEvent = async (req, res) => {
 
     res.json({ message: 'Event deleted successfully' });
   } catch (err) {
-    console.error('Error deleting event:', err.message);
+    logger.error('Error deleting event:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -227,7 +228,7 @@ const checkAvailability = async (req, res) => {
       is_available: event.available_tickets > 0,
     });
   } catch (err) {
-    console.error('Error checking availability:', err.message);
+    logger.error('Error checking availability:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
