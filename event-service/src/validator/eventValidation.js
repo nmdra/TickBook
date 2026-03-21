@@ -52,6 +52,11 @@ const validateEventCreate = (data) => {
   }
 
   // Optional: Description validation
+  if (data.description && typeof data.description !== 'string') {
+    errors.push('Description must be a string');
+  } else if (data.description && data.description.length > 1000) {
+    errors.push('Description cannot exceed 1000 characters');
+  }
 
 
   return {
