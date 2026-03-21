@@ -58,6 +58,12 @@ const validateEventCreate = (data) => {
     errors.push('Description cannot exceed 1000 characters');
   }
 
+    // Optional: Venue validation
+  if (data.venue && typeof data.venue !== 'string') {
+    errors.push('Venue must be a string');
+  } else if (data.venue && data.venue.length > 255) {
+    errors.push('Venue cannot exceed 255 characters');
+  }
 
   return {
     valid: errors.length === 0,
