@@ -109,11 +109,13 @@ services:
     ports:
       - "3002:3002"
     environment:
-      <<: *service-env
       PORT: 3002
-      DB_HOST: postgres-user
-      DB_NAME: userdb
+      DATABASE_URL: postgresql://postgres:postgres@postgres-user:5432/userdb?sslmode=disable
+      KAFKA_BROKERS: kafka:29092
       JWT_SECRET: demo-secret-change-in-production
+      JWT_REFRESH_SECRET: demo-refresh-secret-change-in-production
+      BOOKING_SERVICE_URL: http://booking-service:3003
+      PAYMENT_SERVICE_URL: http://payment-service:3004
     depends_on:
       - postgres-user
       - kafka
