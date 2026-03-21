@@ -3,8 +3,8 @@ server {
     server_name ${NGINX_HOST};
 
     location = /health {
-        add_header Content-Type text/plain always;
-        return 200 "gateway ok";
+        add_header Content-Type application/json always;
+        return 200 '{"status":"ok"}';
     }
 
     location /api/events {
