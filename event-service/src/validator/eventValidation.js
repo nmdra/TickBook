@@ -18,7 +18,19 @@ const validateEventCreate = (data) => {
   }
 
   // Date validation
- 
+  if (!data.date) {
+    errors.push('Date is required');
+  } else {
+    const eventDate = new Date(data.date);
+    if (isNaN(eventDate.getTime())) {
+      errors.push('Date must be a valid ISO 8601 date');
+    } else if (eventDate < new Date()) {
+      errors.push('Event date cannot be in the past');
+    }
+  }
+
+  // Total tickets validation
+
 
   return {
     valid: errors.length === 0,
