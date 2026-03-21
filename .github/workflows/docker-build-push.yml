@@ -58,11 +58,19 @@ jobs:
       - name: Resolve service paths
         id: service-paths
         run: |
-          if [[ "${{ matrix.service }}" == "nginx-gateway" ]]; then
-            echo "dockerfile=nginx/Dockerfile" >> $GITHUB_OUTPUT
-          else
-            echo "dockerfile=${{ matrix.service }}/Dockerfile" >> $GITHUB_OUTPUT
+          declare -A dockerfiles=(
+            [event-service]=event-service/Dockerfile
+            [user-service]=user-service/Dockerfile
+            [booking-service]=booking-service/Dockerfile
+            [payment-service]=payment-service/Dockerfile
+            [nginx-gateway]=nginx/Dockerfile
+          )
+          dockerfile=${dockerfiles[${{ matrix.service }}]}
+          if [[ -z "$dockerfile" ]]; then
+            echo "Unknown service: ${{ matrix.service }}" >&2
+            exit 1
           fi
+          echo "dockerfile=$dockerfile" >> $GITHUB_OUTPUT
 
       - name: Lint Dockerfile with Hadolint
         uses: hadolint/hadolint-action@v3.1.0
