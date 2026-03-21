@@ -7,6 +7,7 @@ A microservices-based event ticket booking system built with **Node.js** and **G
 - [Project Overview](#project-overview)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
+- [Kafka Event-Driven Flow](#kafka-event-driven-flow)
 - [Prerequisites](#prerequisites)
 - [Setup Instructions](#setup-instructions)
 - [Docker Usage](#docker-usage)
@@ -71,6 +72,39 @@ TickBook consists of four microservices that communicate via **REST** (synchrono
 
 - **REST (Synchronous):** Booking Service calls Event Service (check availability) and User Service (validate user).
 - **Kafka (Asynchronous):** Booking Service publishes to `bookings` topic → Payment Service consumes and creates payments. Event Service publishes to `events` topic.
+
+### Kafka Event-Driven Flow
+
+TickBook uses Kafka to propagate state changes that don't need synchronous coupling. Producers publish JSON payloads
+containing an `event_type` plus the related data, while consumers react to those events.
+
+#### Topic: `bookings`
+
+- **Producer:** Booking Service (Go)
+- **Consumers:**
+  - Payment Service (`payment-service` group, `fromBeginning: true`)
+  - User Service (`user-service-group`, `fromBeginning: false`, currently logs events only)
+
+| event_type | Payload fields | Consumer behavior |
+|------------|----------------|-------------------|
+| `booking.created` | `event_type`, `booking_id`, `user_id`, `event_id`, `tickets`, `amount`, `status` | Payment Service creates or updates a pending payment. |
+| `booking.cancelled` | `event_type`, `booking_id`, `user_id`, `event_id`, `tickets`, `amount`, `status` | Payment Service marks payments as failed when they are not completed/refunded. |
+
+#### Topic: `events`
+
+- **Producer:** Event Service (Node.js)
+- **Consumers:** None in this repo (available for future subscribers)
+
+| event_type | Payload |
+|------------|---------|
+| `event.created` | Full event record returned from the database. |
+| `event.updated` | Full updated event record returned from the database. |
+| `event.deleted` | `{ "id": <event id> }` |
+
+#### Kafka Configuration
+
+- All services read `KAFKA_BROKERS` (comma-separated broker list).
+- Payment Service additionally uses `KAFKA_RECONNECT_INTERVAL_MS` to retry consumer connections.
 
 ## Prerequisites
 
