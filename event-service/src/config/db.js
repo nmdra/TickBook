@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const logger = require('./logger');
 
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
@@ -24,7 +25,7 @@ const initDB = async () => {
     );
   `;
   await pool.query(query);
-  console.log('Database initialized');
+  logger.info('Database initialized');
 };
 
 module.exports = { pool, initDB };
