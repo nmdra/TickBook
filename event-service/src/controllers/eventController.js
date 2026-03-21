@@ -1,6 +1,7 @@
 const { pool } = require('../config/db');
 const { getRedis } = require('../config/redis');
 const { publishEvent } = require('../config/kafka');
+const { validateEventCreate } = require('../validator/eventValidation');
 
 const CACHE_TTL = 60;
 
@@ -55,7 +56,7 @@ const getEventById = async (req, res) => {
     const result = await pool.query('SELECT * FROM events WHERE id = $1', [id]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Event not found' });
+      return res.status(404).json({ error: 'Event not found:' });
     }
 
     if (redis) {
@@ -69,7 +70,7 @@ const getEventById = async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error fetching event:', err.message);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error:' });
   }
 };
 
@@ -77,12 +78,13 @@ const createEvent = async (req, res) => {
   try {
     const { title, description, venue, date, total_tickets, price } = req.body;
 
-    if (!title || !date || !total_tickets || !price) {
-      return res.status(400).json({ error: 'Missing required fields: title, date, total_tickets, price' });
-    }
-
-    if (total_tickets <= 0 || price <= 0) {
-      return res.status(400).json({ error: 'total_tickets and price must be positive numbers' });
+    // Validate input
+    const validation = validateEventCreate(req.body);
+    if (!validation.valid) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        details: validation.errors 
+      });
     }
 
     const result = await pool.query(
@@ -99,7 +101,7 @@ const createEvent = async (req, res) => {
       try {
         await redis.del('events:all');
       } catch (err) {
-        console.warn('Redis invalidation error:', err.message);
+        console.warn('Redis invalidation error', err.message);
       }
     }
 
@@ -108,7 +110,7 @@ const createEvent = async (req, res) => {
     res.status(201).json(event);
   } catch (err) {
     console.error('Error creating event:', err.message);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error:' });
   }
 };
 
@@ -119,7 +121,7 @@ const updateEvent = async (req, res) => {
 
     const existing = await pool.query('SELECT * FROM events WHERE id = $1', [id]);
     if (existing.rows.length === 0) {
-      return res.status(404).json({ error: 'Event not found' });
+      return res.status(404).json({ error: 'Event not found:' });
     }
 
     const newTotalTickets = total_tickets !== undefined ? total_tickets : existing.rows[0].total_tickets;
@@ -170,7 +172,7 @@ const updateEvent = async (req, res) => {
     res.json(event);
   } catch (err) {
     console.error('Error updating event:', err.message);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error.' });
   }
 };
 
@@ -181,7 +183,7 @@ const deleteEvent = async (req, res) => {
     const result = await pool.query('DELETE FROM events WHERE id = $1 RETURNING *', [id]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Event not found' });
+      return res.status(404).json({ error: 'Event not found.' });
     }
 
     const redis = getRedis();
@@ -198,7 +200,7 @@ const deleteEvent = async (req, res) => {
     res.json({ message: 'Event deleted successfully' });
   } catch (err) {
     console.error('Error deleting event:', err.message);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error.' });
   }
 };
 
@@ -212,7 +214,7 @@ const checkAvailability = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Event not found' });
+      return res.status(404).json({ error: 'Event not found.' });
     }
 
     const event = result.rows[0];
@@ -226,7 +228,7 @@ const checkAvailability = async (req, res) => {
     });
   } catch (err) {
     console.error('Error checking availability:', err.message);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error.' });
   }
 };
 
