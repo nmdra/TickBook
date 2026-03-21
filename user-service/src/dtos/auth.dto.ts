@@ -32,7 +32,7 @@ export interface VerifyTokenRequestDto {
 }
 
 export interface AuthenticatedUserPayload {
-  id: string;
+  id: number;
   email: string;
   role: string;
   iat?: number;
@@ -40,19 +40,16 @@ export interface AuthenticatedUserPayload {
 }
 
 export interface PublicUserDto {
-  id: string;
+  id: number;
   name: string;
   email: string;
   role: string;
-  address: string | null;
-  phoneNumber: string | null;
-  totalTicketsBooked: number;
   created_at: Date;
   updated_at: Date;
 }
 
 export interface LoginUserDto {
-  id: string;
+  id: number;
   name: string;
   email: string;
   role: string;
@@ -73,7 +70,7 @@ export type VerifyTokenResultDto =
   | {
       isValid: true;
       user: {
-        id: string;
+        id: number;
         role: string;
       };
     }

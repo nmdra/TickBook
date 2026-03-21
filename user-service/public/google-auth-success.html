@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Google Login Success</title>
+    <style>
+      :root {
+        --bg: #f3efe7;
+        --panel: rgba(255, 252, 245, 0.96);
+        --text: #1f2937;
+        --muted: #5f6b76;
+        --success: #166534;
+        --success-soft: rgba(22, 101, 52, 0.12);
+        --danger: #b42318;
+        --danger-soft: rgba(180, 35, 24, 0.1);
+        --primary: #0f766e;
+        --primary-strong: #115e59;
+        --secondary: #d97706;
+        --border: rgba(31, 41, 55, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(15, 118, 110, 0.16), transparent 28%),
+          radial-gradient(circle at bottom right, rgba(217, 119, 6, 0.18), transparent 26%),
+          linear-gradient(135deg, #e9e2d6 0%, #f7f4ef 55%, #eee7dc 100%);
+      }
+
+      .card {
+        width: min(720px, 100%);
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        padding: 32px;
+        box-shadow: 0 22px 70px rgba(31, 41, 55, 0.12);
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+      }
+
+      .eyebrow.success {
+        color: var(--success);
+        background: var(--success-soft);
+      }
+
+      .eyebrow.error {
+        color: var(--danger);
+        background: var(--danger-soft);
+      }
+
+      h1 {
+        margin: 18px 0 10px;
+        font-size: clamp(2rem, 4vw, 3rem);
+        line-height: 1.05;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .panel {
+        margin-top: 24px;
+        padding: 18px 20px;
+        border-radius: 18px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .meta {
+        display: grid;
+        gap: 12px;
+        margin-top: 10px;
+      }
+
+      .meta strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 0.9rem;
+      }
+
+      code {
+        word-break: break-all;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 0.92rem;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      button,
+      a.button-link {
+        border: 0;
+        border-radius: 999px;
+        padding: 13px 18px;
+        text-decoration: none;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.15s ease, background 0.15s ease;
+      }
+
+      button:hover,
+      a.button-link:hover {
+        transform: translateY(-1px);
+      }
+
+      .primary {
+        background: var(--primary);
+        color: #fff;
+      }
+
+      .primary:hover {
+        background: var(--primary-strong);
+      }
+
+      .secondary {
+        background: #f0e7d7;
+        color: var(--text);
+      }
+
+      .secondary:hover {
+        background: #e6dbc7;
+      }
+
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div id="statusBadge" class="eyebrow success">Google Login Successful</div>
+      <h1 id="title">You are signed in with Google</h1>
+      <p id="subtitle">
+        Your authentication flow completed successfully. Use the button below to continue to your
+        dashboard.
+      </p>
+
+      <section class="panel">
+        <div class="meta">
+          <div>
+            <strong>Access token received</strong>
+            <code id="accessTokenPreview">Waiting for token...</code>
+          </div>
+          <div>
+            <strong>Refresh token received</strong>
+            <code id="refreshTokenPreview">Waiting for token...</code>
+          </div>
+          <div>
+            <strong>Dashboard destination</strong>
+            <code id="dashboardUrlPreview">http://localhost:3000/dashboard</code>
+          </div>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button id="dashboardButton" class="primary" type="button">Go to Dashboard</button>
+        <a id="googleLoginLink" class="button-link secondary" href="/api/users/auth/google">
+          Login with Google Again
+        </a>
+      </div>
+    </main>
+
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const accessToken = params.get('accessToken') || '';
+      const refreshToken = params.get('refreshToken') || '';
+      const error = params.get('error') || '';
+      const dashboardUrl = params.get('dashboardUrl') || 'http://localhost:3000/dashboard';
+
+      const statusBadge = document.getElementById('statusBadge');
+      const title = document.getElementById('title');
+      const subtitle = document.getElementById('subtitle');
+      const accessTokenPreview = document.getElementById('accessTokenPreview');
+      const refreshTokenPreview = document.getElementById('refreshTokenPreview');
+      const dashboardUrlPreview = document.getElementById('dashboardUrlPreview');
+      const dashboardButton = document.getElementById('dashboardButton');
+
+      const shorten = (value) => {
+        if (!value) {
+          return 'Not provided';
+        }
+
+        if (value.length <= 36) {
+          return value;
+        }
+
+        return `${value.slice(0, 18)}...${value.slice(-12)}`;
+      };
+
+      accessTokenPreview.textContent = shorten(accessToken);
+      refreshTokenPreview.textContent = shorten(refreshToken);
+      dashboardUrlPreview.textContent = dashboardUrl;
+
+      if (error) {
+        statusBadge.textContent = 'Google Login Failed';
+        statusBadge.className = 'eyebrow error';
+        title.textContent = 'Google authentication could not be completed';
+        subtitle.textContent = error;
+        dashboardButton.disabled = true;
+        dashboardButton.className = 'secondary';
+        dashboardButton.textContent = 'Dashboard Unavailable';
+      }
+
+      dashboardButton.addEventListener('click', () => {
+        if (!accessToken || !refreshToken || error) {
+          return;
+        }
+
+        const destination = new URL(dashboardUrl);
+        destination.searchParams.set('accessToken', accessToken);
+        destination.searchParams.set('refreshToken', refreshToken);
+        window.location.href = destination.toString();
+      });
+
+      window.history.replaceState({}, document.title, window.location.pathname);
+    </script>
+  </body>
+</html>

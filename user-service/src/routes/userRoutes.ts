@@ -5,6 +5,9 @@ import { authenticate, authorizeAdmin } from '../middleware/auth';
 const router = Router();
 const userController = new UserController();
 
+router.get('/auth/google', userController.initiateGoogleAuth);
+router.get('/auth/google/callback', userController.googleAuthCallback);
+
 router.post('/register', userController.register);
 router.post('/login', userController.login);
 router.post('/refresh-token', userController.refreshToken);

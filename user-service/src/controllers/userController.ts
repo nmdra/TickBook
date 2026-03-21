@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { ApiResponse } from '../dtos/common.dto';
 import {
   LoginRequestDto,
   LogoutRequestDto,
@@ -13,6 +12,10 @@ import { ServiceError, UserService } from '../services/userService';
 
 export class UserController {
   private readonly userService = new UserService();
+  private readonly frontendSuccessUrl =
+    process.env.FRONTEND_SUCCESS_URL || 'http://localhost:3002/google-auth-success.html';
+  private readonly frontendDashboardUrl =
+    process.env.FRONTEND_DASHBOARD_URL || 'http://localhost:3000/dashboard';
 
   register = async (
     req: Request<unknown, unknown, RegisterRequestDto>,
@@ -20,7 +23,7 @@ export class UserController {
   ): Promise<Response> => {
     try {
       const user = await this.userService.register(req.body);
-      return this.respond(res, 201, 'User registered successfully', user);
+      return res.status(201).json(user);
     } catch (error) {
       return this.handleError(res, error, 'Register error:');
     }
@@ -32,9 +35,57 @@ export class UserController {
   ): Promise<Response> => {
     try {
       const result = await this.userService.login(req.body.email, req.body.password);
-      return this.respond(res, 200, 'Login successful', result);
+      return res.json(result);
     } catch (error) {
       return this.handleError(res, error, 'Login error:');
+    }
+  };
+
+  initiateGoogleAuth = async (_req: Request, res: Response): Promise<Response | void> => {
+    try {
+      const googleAuthUrl = this.userService.generateGoogleAuthUrl();
+      return res.redirect(302, googleAuthUrl);
+    } catch (error) {
+      return this.handleError(res, error, 'Initiate Google auth error:');
+    }
+  };
+
+  googleAuthCallback = async (
+    req: Request<unknown, unknown, unknown, { code?: string; error?: string }>,
+    res: Response
+  ): Promise<Response | void> => {
+    try {
+      if (req.query.error) {
+        throw new ServiceError(400, `Google authentication failed: ${req.query.error}`);
+      }
+
+      const code = typeof req.query.code === 'string' ? req.query.code : '';
+
+      if (!code) {
+        throw new ServiceError(400, 'Authorization code is required.');
+      }
+
+      const result = await this.userService.handleGoogleCallback(code);
+      return res.redirect(
+        302,
+        this.buildFrontendRedirectUrl({
+          accessToken: result.token,
+          refreshToken: result.refreshToken,
+        })
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Google authentication failed.';
+
+      try {
+        return res.redirect(
+          302,
+          this.buildFrontendRedirectUrl({
+            error: message,
+          })
+        );
+      } catch {
+        return this.handleError(res, error, 'Google auth callback error:');
+      }
     }
   };
 
@@ -44,7 +95,7 @@ export class UserController {
   ): Promise<Response> => {
     try {
       const result = await this.userService.refreshAccessToken(req.body.refreshToken);
-      return this.respond(res, 200, 'Access token refreshed successfully', result);
+      return res.status(200).json(result);
     } catch (error) {
       return this.handleError(res, error, 'Refresh token error:');
     }
@@ -56,7 +107,7 @@ export class UserController {
   ): Promise<Response> => {
     try {
       await this.userService.logout(req.body.refreshToken);
-      return this.respond(res, 200, 'Logged out successfully.');
+      return res.status(200).json({ message: 'Logged out successfully.' });
     } catch (error) {
       return this.handleError(res, error, 'Logout error:');
     }
@@ -68,52 +119,34 @@ export class UserController {
   ): Promise<Response> => {
     try {
       const result = await this.userService.verifyAccessToken(req.body.token);
-
-      if (result.isValid) {
-        return this.respond(res, 200, 'Token verification completed', result);
-      }
-
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid or expired token.',
-        data: result,
-      } satisfies ApiResponse);
+      return res.status(result.isValid ? 200 : 401).json(result);
     } catch (error) {
       return this.handleError(res, error, 'Verify token error:');
     }
   };
 
-  getProfile = async (
-    req: AuthenticatedRequest,
-    res: Response
-  ): Promise<Response> => {
+  getProfile = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
     try {
       const profile = await this.userService.getProfile(req.user!.id);
-      return this.respond(res, 200, 'User profile fetched successfully', profile);
+      return res.json(profile);
     } catch (error) {
       return this.handleError(res, error, 'Get profile error:');
     }
   };
 
-  getUserById = async (
-    req: Request<{ id: string }>,
-    res: Response
-  ): Promise<Response> => {
+  getUserById = async (req: Request<{ id: string }>, res: Response): Promise<Response> => {
     try {
       const user = await this.userService.getUserById(req.params.id);
-      return this.respond(res, 200, 'User fetched successfully', user);
+      return res.json(user);
     } catch (error) {
       return this.handleError(res, error, 'Get user by ID error:');
     }
   };
 
-  listUsers = async (
-    _req: AuthenticatedRequest,
-    res: Response
-  ): Promise<Response> => {
+  listUsers = async (_req: AuthenticatedRequest, res: Response): Promise<Response> => {
     try {
       const users = await this.userService.listUsers();
-      return this.respond(res, 200, 'Users fetched successfully', users);
+      return res.json(users);
     } catch (error) {
       return this.handleError(res, error, 'List users error:');
     }
@@ -125,7 +158,7 @@ export class UserController {
   ): Promise<Response> => {
     try {
       const user = await this.userService.updateUser(req.user!, req.params.id, req.body);
-      return this.respond(res, 200, 'User updated successfully', user);
+      return res.json(user);
     } catch (error) {
       return this.handleError(res, error, 'Update user error:');
     }
@@ -137,31 +170,11 @@ export class UserController {
   ): Promise<Response> => {
     try {
       await this.userService.deleteUser(req.user!, req.params.id);
-      return this.respond(res, 200, 'User deleted successfully.');
+      return res.json({ message: 'User deleted successfully.' });
     } catch (error) {
       return this.handleError(res, error, 'Delete user error:');
     }
   };
-
-  private respond<T>(
-    res: Response,
-    statusCode: number,
-    message: string,
-    data?: T
-  ): Response {
-    if (data === undefined || data === null) {
-      return res.status(statusCode).json({
-        success: true,
-        message,
-      } satisfies ApiResponse);
-    }
-
-    return res.status(statusCode).json({
-      success: true,
-      message,
-      data,
-    } satisfies ApiResponse<T>);
-  }
 
   private handleError(
     res: Response,
@@ -172,15 +185,21 @@ export class UserController {
     console.error(logPrefix, message);
 
     if (error instanceof ServiceError) {
-      return res.status(error.statusCode).json({
-        success: false,
-        message: error.message,
-      } satisfies ApiResponse);
+      return res.status(error.statusCode).json({ error: error.message });
     }
 
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error.',
-    } satisfies ApiResponse);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+
+  private buildFrontendRedirectUrl(params: Record<string, string>): string {
+    const redirectUrl = new URL(this.frontendSuccessUrl);
+
+    Object.entries(params).forEach(([key, value]) => {
+      redirectUrl.searchParams.set(key, value);
+    });
+
+    redirectUrl.searchParams.set('dashboardUrl', this.frontendDashboardUrl);
+
+    return redirectUrl.toString();
   }
 }

@@ -1,4 +1,6 @@
+import { randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
+import { OAuth2Client } from 'google-auth-library';
 import jwt, { JwtPayload, Secret, SignOptions } from 'jsonwebtoken';
 import {
   AuthenticatedUserPayload,
@@ -33,11 +35,32 @@ export class ServiceError extends Error {
 }
 
 export class UserService {
-  private readonly accessTokenSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-  private readonly refreshTokenSecret = process.env.JWT_REFRESH_SECRET || this.accessTokenSecret;
+  private readonly accessTokenSecret =
+    process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+  private readonly refreshTokenSecret =
+    process.env.JWT_REFRESH_SECRET || this.accessTokenSecret;
+  private readonly googleClientId = process.env.GOOGLE_CLIENT_ID || '';
+  private readonly googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+  private readonly googleRedirectUri =
+    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3002/api/users/auth/google/callback';
+  private readonly googleClient = new OAuth2Client(
+    this.googleClientId,
+    this.googleClientSecret,
+    this.googleRedirectUri
+  );
   private readonly userRepository = new UserRepository();
   private readonly bookingIntegrationService = new BookingIntegrationService();
   private readonly paymentIntegrationService = new PaymentIntegrationService();
+
+  generateGoogleAuthUrl(): string {
+    this.assertGoogleOAuthConfig();
+
+    return this.googleClient.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent',
+      scope: ['profile', 'email'],
+    });
+  }
 
   async register(payload: RegisterRequestDto): Promise<PublicUserDto> {
     const { name, email, password, role } = payload;
@@ -89,25 +112,75 @@ export class UserService {
       throw new ServiceError(401, 'Invalid email or password.');
     }
 
-    const token = this.signToken(
-      { id: user.id, email: user.email, role: user.role },
-      this.accessTokenSecret,
-      ACCESS_TOKEN_EXPIRES_IN
-    );
-    const refreshToken = this.signToken(
-      { id: user.id, email: user.email, role: user.role },
-      this.refreshTokenSecret,
-      REFRESH_TOKEN_EXPIRES_IN
-    );
+    return this.createAuthenticatedSession(user);
+  }
 
-    user.refreshToken = refreshToken;
-    await this.userRepository.save(user);
+  async handleGoogleCallback(code: string): Promise<LoginResponseDto> {
+    if (!code) {
+      throw new ServiceError(400, 'Authorization code is required.');
+    }
 
-    return {
-      token,
-      refreshToken,
-      user: this.toLoginUserDto(user),
-    };
+    this.assertGoogleOAuthConfig();
+
+    try {
+      const { tokens } = await this.googleClient.getToken(code);
+
+      if (!tokens.id_token) {
+        throw new ServiceError(500, 'Failed to retrieve Google ID token.');
+      }
+
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken: tokens.id_token,
+        audience: this.googleClientId,
+      });
+
+      const payload = ticket.getPayload();
+      const email = payload?.email;
+      const name = payload?.name;
+
+      if (!email) {
+        throw new ServiceError(400, 'Google account email is unavailable.');
+      }
+
+      let user = await this.userRepository.findByEmail(email);
+
+      if (!user) {
+        const generatedPassword = randomBytes(48).toString('hex');
+        const profile = new Profile();
+        profile.name = name || this.buildFallbackName(email);
+        profile.address = null;
+        profile.phoneNumber = null;
+        profile.totalTicketsBooked = 0;
+
+        user = this.userRepository.create({
+          email,
+          password: await bcrypt.hash(generatedPassword, 10),
+          role: 'user',
+          refreshToken: null,
+          profile,
+        });
+
+        profile.user = user;
+        user = await this.userRepository.save(user);
+      } else if (!user.profile) {
+        const profile = new Profile();
+        profile.name = name || this.buildFallbackName(email);
+        profile.address = null;
+        profile.phoneNumber = null;
+        profile.totalTicketsBooked = 0;
+        profile.user = user;
+        user.profile = profile;
+        user = await this.userRepository.save(user);
+      }
+
+      return this.createAuthenticatedSession(user);
+    } catch (error) {
+      if (error instanceof ServiceError) {
+        throw error;
+      }
+
+      throw new ServiceError(500, 'Google authentication failed.');
+    }
   }
 
   async refreshAccessToken(refreshToken?: string): Promise<{ token: string }> {
@@ -173,7 +246,7 @@ export class UserService {
     }
   }
 
-  async getProfile(userId: string): Promise<ProfileResponseDto> {
+  async getProfile(userId: number): Promise<ProfileResponseDto> {
     const user = await this.userRepository.findById(userId);
 
     if (!user) {
@@ -193,7 +266,7 @@ export class UserService {
   }
 
   async getUserById(id: string): Promise<PublicUserDto> {
-    const user = await this.userRepository.findPublicById(id);
+    const user = await this.userRepository.findPublicById(this.parseUserId(id));
 
     if (!user) {
       throw new ServiceError(404, 'User not found.');
@@ -213,7 +286,9 @@ export class UserService {
     id: string,
     payload: UpdateUserRequestDto
   ): Promise<PublicUserDto> {
-    if (actor.id !== id && actor.role !== 'admin') {
+    const parsedId = this.parseUserId(id);
+
+    if (actor.id !== parsedId && actor.role !== 'admin') {
       throw new ServiceError(403, 'You can only update your own profile.');
     }
 
@@ -239,7 +314,7 @@ export class UserService {
       throw new ServiceError(400, 'No fields to update.');
     }
 
-    const user = await this.userRepository.updateById(id, changes);
+    const user = await this.userRepository.updateById(parsedId, changes);
 
     if (!user) {
       throw new ServiceError(404, 'User not found.');
@@ -249,11 +324,13 @@ export class UserService {
   }
 
   async deleteUser(actor: AuthenticatedUserPayload, id: string): Promise<void> {
-    if (actor.id !== id && actor.role !== 'admin') {
+    const parsedId = this.parseUserId(id);
+
+    if (actor.id !== parsedId && actor.role !== 'admin') {
       throw new ServiceError(403, 'You can only delete your own account.');
     }
 
-    const deleted = await this.userRepository.deleteById(id);
+    const deleted = await this.userRepository.deleteById(parsedId);
 
     if (!deleted) {
       throw new ServiceError(404, 'User not found.');
@@ -261,11 +338,39 @@ export class UserService {
   }
 
   private signToken(
-    payload: { id: string; email: string; role: string },
+    payload: { id: number; email: string; role: string },
     secret: string,
     expiresIn: string
   ): string {
     return jwt.sign(payload, secret as Secret, { expiresIn } as SignOptions);
+  }
+
+  private async createAuthenticatedSession(user: User): Promise<LoginResponseDto> {
+    const token = this.signToken(
+      { id: user.id, email: user.email, role: user.role },
+      this.accessTokenSecret,
+      ACCESS_TOKEN_EXPIRES_IN
+    );
+    const refreshToken = this.signToken(
+      { id: user.id, email: user.email, role: user.role },
+      this.refreshTokenSecret,
+      REFRESH_TOKEN_EXPIRES_IN
+    );
+
+    user.refreshToken = refreshToken;
+    await this.userRepository.save(user);
+
+    return {
+      token,
+      refreshToken,
+      user: this.toLoginUserDto(user),
+    };
+  }
+
+  private assertGoogleOAuthConfig(): void {
+    if (!this.googleClientId || !this.googleClientSecret || !this.googleRedirectUri) {
+      throw new ServiceError(500, 'Google OAuth is not configured.');
+    }
   }
 
   private verifyTokenPayload(token: string, secret: string): AuthenticatedUserPayload {
@@ -276,11 +381,11 @@ export class UserService {
     }
 
     const payload = decoded as JwtPayload;
-    const id = String(payload.id ?? '');
+    const id = Number(payload.id);
     const email = String(payload.email ?? '');
     const role = String(payload.role ?? '');
 
-    if (!id || !role) {
+    if (!Number.isInteger(id) || id <= 0 || !role) {
       throw new Error('Invalid token payload');
     }
 
@@ -299,9 +404,6 @@ export class UserService {
       name: user.profile?.name ?? this.buildFallbackName(user.email),
       email: user.email,
       role: user.role,
-      address: user.profile?.address ?? null,
-      phoneNumber: user.profile?.phoneNumber ?? null,
-      totalTicketsBooked: user.profile?.totalTicketsBooked ?? 0,
       created_at: user.createdAt,
       updated_at: user.updatedAt,
     };
@@ -318,5 +420,15 @@ export class UserService {
 
   private buildFallbackName(email: string): string {
     return email.split('@')[0] || 'user';
+  }
+
+  private parseUserId(id: string): number {
+    const parsedId = Number(id);
+
+    if (!Number.isInteger(parsedId) || parsedId <= 0) {
+      throw new ServiceError(404, 'User not found.');
+    }
+
+    return parsedId;
   }
 }

@@ -11,6 +11,7 @@ RUN addgroup -g 1001 appgroup && adduser -u 1001 -G appgroup -s /bin/sh -D appus
 COPY package.json ./
 RUN npm install --omit=dev
 COPY --from=builder /app/dist ./dist
+COPY public ./public
 ENV NODE_ENV=production
 USER appuser
 EXPOSE 3002

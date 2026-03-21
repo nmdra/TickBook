@@ -1,5 +1,4 @@
 import { NextFunction, Request, Response } from 'express';
-import { ApiResponse } from '../dtos/common.dto';
 import jwt, { JwtPayload, Secret } from 'jsonwebtoken';
 import { AuthenticatedUserPayload } from '../dtos/auth.dto';
 
@@ -17,11 +16,11 @@ const parseJwtPayload = (token: string): AuthenticatedUserPayload => {
   }
 
   const payload = decoded as JwtPayload;
-  const id = String(payload.id ?? '');
+  const id = Number(payload.id);
   const email = String(payload.email ?? '');
   const role = String(payload.role ?? '');
 
-  if (!id || !role) {
+  if (!Number.isInteger(id) || id <= 0 || !role) {
     throw new Error('Invalid token payload');
   }
 
@@ -36,16 +35,13 @@ const parseJwtPayload = (token: string): AuthenticatedUserPayload => {
 
 export const authenticate = (
   req: AuthenticatedRequest,
-  res: Response<ApiResponse>,
+  res: Response,
   next: NextFunction
 ): Response | void => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({
-      success: false,
-      message: 'Access denied. No token provided.',
-    });
+    return res.status(401).json({ error: 'Access denied. No token provided.' });
   }
 
   const token = authHeader.split(' ')[1];
@@ -54,23 +50,17 @@ export const authenticate = (
     req.user = parseJwtPayload(token);
     next();
   } catch {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid or expired token.',
-    });
+    return res.status(401).json({ error: 'Invalid or expired token.' });
   }
 };
 
 export const authorizeAdmin = (
   req: AuthenticatedRequest,
-  res: Response<ApiResponse>,
+  res: Response,
   next: NextFunction
 ): Response | void => {
   if (req.user?.role !== 'admin') {
-    return res.status(403).json({
-      success: false,
-      message: 'Access denied. Admin role required.',
-    });
+    return res.status(403).json({ error: 'Access denied. Admin role required.' });
   }
 
   next();

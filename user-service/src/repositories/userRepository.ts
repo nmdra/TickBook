@@ -42,7 +42,7 @@ export class UserRepository {
       .getOne();
   }
 
-  async findById(id: string): Promise<User | null> {
+  async findById(id: number): Promise<User | null> {
     return this.repository.findOne({
       where: { id },
       relations: {
@@ -51,7 +51,7 @@ export class UserRepository {
     });
   }
 
-  async findByIdWithRefreshToken(id: string): Promise<User | null> {
+  async findByIdWithRefreshToken(id: number): Promise<User | null> {
     return this.repository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.profile', 'profile')
@@ -69,7 +69,7 @@ export class UserRepository {
       .getOne();
   }
 
-  async findPublicById(id: string): Promise<User | null> {
+  async findPublicById(id: number): Promise<User | null> {
     return this.repository.findOne({
       where: { id },
       relations: {
@@ -89,7 +89,7 @@ export class UserRepository {
     });
   }
 
-  async updateById(id: string, changes: UpdateUserPersistenceInput): Promise<User | null> {
+  async updateById(id: number, changes: UpdateUserPersistenceInput): Promise<User | null> {
     const user = await this.repository.findOne({
       where: { id },
       relations: {
@@ -128,7 +128,7 @@ export class UserRepository {
     return this.repository.save(user);
   }
 
-  async deleteById(id: string): Promise<boolean> {
+  async deleteById(id: number): Promise<boolean> {
     const result = await this.repository.delete({
       id,
     });

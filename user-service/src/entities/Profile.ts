@@ -9,8 +9,8 @@ import { User } from './User';
 
 @Entity({ name: 'profiles' })
 export class Profile {
-  @PrimaryGeneratedColumn('uuid', { name: 'id' })
-  id!: string;
+  @PrimaryGeneratedColumn({ name: 'id' })
+  id!: number;
 
   @Column({ name: 'name', type: 'varchar', length: 255 })
   name!: string;

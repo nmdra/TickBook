@@ -2,47 +2,25 @@
  * @swagger
  * components:
  *   schemas:
- *     ApiSuccessBase:
+ *     Error:
  *       type: object
  *       required:
- *         - success
- *         - message
+ *         - error
  *       properties:
- *         success:
- *           type: boolean
- *           enum: [true]
- *         message:
+ *         error:
  *           type: string
- *     ApiErrorResponse:
- *       type: object
- *       required:
- *         - success
- *         - message
- *       properties:
- *         success:
- *           type: boolean
- *           enum: [false]
- *         message:
- *           type: string
- *     UpstreamRecord:
- *       type: object
- *       additionalProperties: true
- *     UserResponseData:
+ *     User:
  *       type: object
  *       required:
  *         - id
  *         - name
  *         - email
  *         - role
- *         - address
- *         - phoneNumber
- *         - totalTicketsBooked
  *         - created_at
  *         - updated_at
  *       properties:
  *         id:
- *           type: string
- *           format: uuid
+ *           type: integer
  *         name:
  *           type: string
  *         email:
@@ -50,25 +28,15 @@
  *           format: email
  *         role:
  *           type: string
- *           example: user
- *         address:
- *           type: string
- *           nullable: true
- *         phoneNumber:
- *           type: string
- *           nullable: true
- *         totalTicketsBooked:
- *           type: integer
- *           example: 0
  *         created_at:
  *           type: string
  *           format: date-time
  *         updated_at:
  *           type: string
  *           format: date-time
- *     ProfileResponseData:
+ *     ProfileResponse:
  *       allOf:
- *         - $ref: '#/components/schemas/UserResponseData'
+ *         - $ref: '#/components/schemas/User'
  *         - type: object
  *           required:
  *             - recentBookings
@@ -77,12 +45,14 @@
  *             recentBookings:
  *               type: array
  *               items:
- *                 $ref: '#/components/schemas/UpstreamRecord'
+ *                 type: object
+ *                 additionalProperties: true
  *             paymentHistory:
  *               type: array
  *               items:
- *                 $ref: '#/components/schemas/UpstreamRecord'
- *     LoginUserData:
+ *                 type: object
+ *                 additionalProperties: true
+ *     LoginUser:
  *       type: object
  *       required:
  *         - id
@@ -91,8 +61,7 @@
  *         - role
  *       properties:
  *         id:
- *           type: string
- *           format: uuid
+ *           type: integer
  *         name:
  *           type: string
  *         email:
@@ -100,8 +69,7 @@
  *           format: email
  *         role:
  *           type: string
- *           example: user
- *     LoginResponseData:
+ *     LoginResponse:
  *       type: object
  *       required:
  *         - token
@@ -113,18 +81,26 @@
  *         refreshToken:
  *           type: string
  *         user:
- *           $ref: '#/components/schemas/LoginUserData'
- *     RefreshTokenResponseData:
+ *           $ref: '#/components/schemas/LoginUser'
+ *     RefreshTokenResponse:
  *       type: object
  *       required:
  *         - token
  *       properties:
  *         token:
  *           type: string
- *     VerifyTokenResponseData:
+ *     LogoutResponse:
+ *       type: object
+ *       required:
+ *         - message
+ *       properties:
+ *         message:
+ *           type: string
+ *     VerifyTokenValidResponse:
  *       type: object
  *       required:
  *         - isValid
+ *         - user
  *       properties:
  *         isValid:
  *           type: boolean
@@ -136,68 +112,17 @@
  *             - role
  *           properties:
  *             id:
- *               type: string
- *               format: uuid
+ *               type: integer
  *             role:
  *               type: string
- *     UserSuccessResponse:
- *       allOf:
- *         - $ref: '#/components/schemas/ApiSuccessBase'
- *         - type: object
- *           required:
- *             - data
- *           properties:
- *             data:
- *               $ref: '#/components/schemas/UserResponseData'
- *     UsersSuccessResponse:
- *       allOf:
- *         - $ref: '#/components/schemas/ApiSuccessBase'
- *         - type: object
- *           required:
- *             - data
- *           properties:
- *             data:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/UserResponseData'
- *     ProfileSuccessResponse:
- *       allOf:
- *         - $ref: '#/components/schemas/ApiSuccessBase'
- *         - type: object
- *           required:
- *             - data
- *           properties:
- *             data:
- *               $ref: '#/components/schemas/ProfileResponseData'
- *     LoginSuccessResponse:
- *       allOf:
- *         - $ref: '#/components/schemas/ApiSuccessBase'
- *         - type: object
- *           required:
- *             - data
- *           properties:
- *             data:
- *               $ref: '#/components/schemas/LoginResponseData'
- *     RefreshTokenSuccessResponse:
- *       allOf:
- *         - $ref: '#/components/schemas/ApiSuccessBase'
- *         - type: object
- *           required:
- *             - data
- *           properties:
- *             data:
- *               $ref: '#/components/schemas/RefreshTokenResponseData'
- *     VerifyTokenSuccessResponse:
- *       allOf:
- *         - $ref: '#/components/schemas/ApiSuccessBase'
- *         - type: object
- *           required:
- *             - data
- *           properties:
- *             data:
- *               $ref: '#/components/schemas/VerifyTokenResponseData'
- *     MessageSuccessResponse:
- *       $ref: '#/components/schemas/ApiSuccessBase'
+ *     VerifyTokenInvalidResponse:
+ *       type: object
+ *       required:
+ *         - isValid
+ *       properties:
+ *         isValid:
+ *           type: boolean
+ *           enum: [false]
  *     RegisterInput:
  *       type: object
  *       required:
@@ -258,6 +183,58 @@
 
 /**
  * @swagger
+ * /api/users/auth/google:
+ *   get:
+ *     summary: Redirect the browser to Google OAuth consent
+ *     tags: [Authentication]
+ *     responses:
+ *       302:
+ *         description: Redirects to Google's OAuth consent screen
+ *       500:
+ *         description: Google OAuth is not configured
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
+/**
+ * @swagger
+ * /api/users/auth/google/callback:
+ *   get:
+ *     summary: Google OAuth callback endpoint
+ *     tags: [Authentication]
+ *     description: Exchanges the Google authorization code and redirects the browser to the configured frontend success page.
+ *     parameters:
+ *       - in: query
+ *         name: code
+ *         required: false
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: error
+ *         required: false
+ *         schema:
+ *           type: string
+ *     responses:
+ *       302:
+ *         description: Redirects to the frontend success page with accessToken and refreshToken query params on success, or an error query param on failure
+ *       400:
+ *         description: Fallback JSON error only if frontend redirection cannot be completed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Fallback JSON error only if frontend redirection cannot be completed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
+/**
+ * @swagger
  * /api/users/register:
  *   post:
  *     summary: Register a new user
@@ -274,25 +251,25 @@
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/UserSuccessResponse'
+ *               $ref: '#/components/schemas/User'
  *       400:
  *         description: Invalid registration payload
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  *       409:
  *         description: Email already registered
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  */
 
 /**
@@ -313,25 +290,25 @@
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/LoginSuccessResponse'
+ *               $ref: '#/components/schemas/LoginResponse'
  *       400:
  *         description: Missing login fields
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  *       401:
  *         description: Invalid credentials
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  */
 
 /**
@@ -352,19 +329,19 @@
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/RefreshTokenSuccessResponse'
+ *               $ref: '#/components/schemas/RefreshTokenResponse'
  *       401:
  *         description: Invalid or expired refresh token
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  */
 
 /**
@@ -372,9 +349,9 @@
  * /api/users/logout:
  *   post:
  *     summary: Logout a user and clear the refresh token
- *     tags: [Users]
+ *     tags: [Authentication]
  *     requestBody:
- *       required: true
+ *       required: false
  *       content:
  *         application/json:
  *           schema:
@@ -385,13 +362,13 @@
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/MessageSuccessResponse'
+ *               $ref: '#/components/schemas/LogoutResponse'
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  */
 
 /**
@@ -399,7 +376,7 @@
  * /api/users/verify-token:
  *   post:
  *     summary: Verify whether an access token is valid
- *     tags: [Users]
+ *     tags: [Authentication]
  *     requestBody:
  *       required: true
  *       content:
@@ -412,19 +389,19 @@
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/VerifyTokenSuccessResponse'
+ *               $ref: '#/components/schemas/VerifyTokenValidResponse'
  *       401:
  *         description: Invalid or expired token
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/VerifyTokenInvalidResponse'
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  */
 
 /**
@@ -441,25 +418,25 @@
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ProfileSuccessResponse'
+ *               $ref: '#/components/schemas/ProfileResponse'
  *       401:
  *         description: Unauthorized
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: User not found
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  */
 
 /**
@@ -476,25 +453,27 @@
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/UsersSuccessResponse'
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/User'
  *       401:
  *         description: Unauthorized
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  *       403:
  *         description: Forbidden
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  */
 
 /**
@@ -508,8 +487,7 @@
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *         description: User ID
  *     responses:
  *       200:
@@ -517,24 +495,19 @@
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/UserSuccessResponse'
+ *               $ref: '#/components/schemas/User'
  *       404:
  *         description: User not found
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
- */
-
-/**
- * @swagger
- * /api/users/{id}:
+ *               $ref: '#/components/schemas/Error'
  *   put:
  *     summary: Update a user
  *     tags: [Users]
@@ -545,8 +518,7 @@
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *         description: User ID
  *     requestBody:
  *       required: true
@@ -560,42 +532,37 @@
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/UserSuccessResponse'
+ *               $ref: '#/components/schemas/User'
  *       400:
  *         description: Invalid update payload
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  *       401:
  *         description: Unauthorized
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  *       403:
  *         description: Forbidden
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: User not found
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
- */
-
-/**
- * @swagger
- * /api/users/{id}:
+ *               $ref: '#/components/schemas/Error'
  *   delete:
  *     summary: Delete a user
  *     tags: [Users]
@@ -606,8 +573,7 @@
  *         name: id
  *         required: true
  *         schema:
- *           type: string
- *           format: uuid
+ *           type: integer
  *         description: User ID
  *     responses:
  *       200:
@@ -615,31 +581,31 @@
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/MessageSuccessResponse'
+ *               $ref: '#/components/schemas/LogoutResponse'
  *       401:
  *         description: Unauthorized
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  *       403:
  *         description: Forbidden
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: User not found
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  *       500:
  *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ApiErrorResponse'
+ *               $ref: '#/components/schemas/Error'
  */
 
 export {};

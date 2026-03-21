@@ -12,7 +12,7 @@ export class PaymentIntegrationService {
     });
   }
 
-  async fetchPaymentHistory(userId: string): Promise<UpstreamRecord[]> {
+  async fetchPaymentHistory(userId: number): Promise<UpstreamRecord[]> {
     try {
       const response = await this.client.get<UpstreamRecord[]>(`/api/payments/user/${userId}`);
 

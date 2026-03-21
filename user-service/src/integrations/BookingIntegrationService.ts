@@ -12,7 +12,7 @@ export class BookingIntegrationService {
     });
   }
 
-  async fetchRecentBookings(userId: string): Promise<UpstreamRecord[]> {
+  async fetchRecentBookings(userId: number): Promise<UpstreamRecord[]> {
     try {
       const response = await this.client.get<UpstreamRecord[]>(`/api/bookings/user/${userId}`);
 
