@@ -159,7 +159,8 @@ services:
     <<: *default-network
 
   nginx-gateway:
-    image: nginx:1.27-alpine
+    image: nginx-gateway
+    build: ./nginx
     ports:
       - "${GATEWAY_PORT:-8080}:80"
     environment:
