@@ -8,7 +8,7 @@ on:
 jobs:
   detect-changes:
     name: Detect Changed Services
-    if: ${{ secrets.ACR_LOGIN_SERVER != '' && secrets.ACR_USERNAME != '' && secrets.ACR_PASSWORD != '' && secrets.ACR_REPOSITORY != '' }}
+    if: ${{ secrets.ACR_LOGIN_SERVER != null && secrets.ACR_LOGIN_SERVER != '' && secrets.ACR_USERNAME != null && secrets.ACR_USERNAME != '' && secrets.ACR_PASSWORD != null && secrets.ACR_PASSWORD != '' && secrets.ACR_REPOSITORY != null && secrets.ACR_REPOSITORY != '' }}
     runs-on: ubuntu-latest
     outputs:
       services: ${{ steps.filter.outputs.changes }}
@@ -58,17 +58,7 @@ jobs:
         id: vars
         run: |
           echo "sha_tag=sha-$(echo '${{ github.sha }}' | cut -c1-7)" >> $GITHUB_OUTPUT
-          echo "repo=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-          
-          GITHUB_REF="${{ github.ref }}"
-          
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == 'pull_request' ]]; then
-            echo "tag=pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=latest" >> $GITHUB_OUTPUT
-          fi
+          echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
