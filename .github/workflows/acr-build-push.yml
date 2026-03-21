@@ -1,17 +1,14 @@
-name: Docker Build, Scan, and Push
+name: ACR Build, Scan, and Push
 
 on:
   push:
-    branches:
-      - main
-      - Development
     tags:
-      - 'v*'
-  workflow_dispatch:
+      - '*'
 
 jobs:
   detect-changes:
     name: Detect Changed Services
+    if: ${{ secrets.ACR_LOGIN_SERVER != '' && secrets.ACR_USERNAME != '' && secrets.ACR_PASSWORD != '' && secrets.ACR_REPOSITORY != '' }}
     runs-on: ubuntu-latest
     outputs:
       services: ${{ steps.filter.outputs.changes }}
@@ -40,7 +37,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
       security-events: write
       actions: read
 
@@ -80,8 +76,8 @@ jobs:
       - name: Build and load image locally
         uses: docker/bake-action@v5
         env:
-          REGISTRY: ghcr.io
-          REPO: ${{ steps.vars.outputs.repo }}
+          REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
+          REPO: ${{ secrets.ACR_REPOSITORY }}
           TAG: ${{ steps.vars.outputs.tag }}
           SHA_TAG: ${{ steps.vars.outputs.sha_tag }}
         with:
@@ -98,7 +94,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: ghcr.io/${{ steps.vars.outputs.repo }}/${{ matrix.service }}:${{ steps.vars.outputs.sha_tag }}
+          image: ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}/${{ matrix.service }}:${{ steps.vars.outputs.sha_tag }}
           args: --file=${{ matrix.service }}/Dockerfile --sarif-file-output=snyk.sarif
 
       - name: Save Snyk SARIF as an Artifact
@@ -108,20 +104,18 @@ jobs:
           path: snyk.sarif
           retention-days: 2
 
-      - name: Login to GitHub Container Registry
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+      - name: Login to Azure Container Registry
+        uses: docker/login-action@v4
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
 
-      - name: Push image to registry
-        if: github.event_name != 'pull_request'
+      - name: Push image to Azure Container Registry
         uses: docker/bake-action@v5
         env:
-          REGISTRY: ghcr.io
-          REPO: ${{ steps.vars.outputs.repo }}
+          REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
+          REPO: ${{ secrets.ACR_REPOSITORY }}
           TAG: ${{ steps.vars.outputs.tag }}
           SHA_TAG: ${{ steps.vars.outputs.sha_tag }}
         with:
