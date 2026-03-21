@@ -184,8 +184,12 @@ docker run -p 3001:3001 \
 
 ### Service URLs (after `docker compose up`)
 
+The nginx gateway proxy exposes a single entry point at `http://localhost:8080` (override with `GATEWAY_PORT`)
+and routes `/api/events`, `/api/users`, `/api/bookings`, and `/api/payments` to the corresponding services.
+
 | Service | URL | Swagger |
 |---------|-----|---------|
+| Gateway (nginx) | http://localhost:8080 | N/A |
 | Event Service | http://localhost:3001 | http://localhost:3001/api-docs |
 | User Service | http://localhost:3002 | http://localhost:3002/api-docs |
 | Booking Service | http://localhost:3003 | http://localhost:3003/swagger/ |
