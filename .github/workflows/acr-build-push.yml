@@ -89,7 +89,7 @@ jobs:
             ${{ matrix.service }}.cache-to=type=gha,mode=max,scope=${{ matrix.service }}
 
       - name: Run Snyk to check Docker image for vulnerabilities
-        continue-on-error: true 
+        continue-on-error: true
         uses: snyk/actions/docker@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
