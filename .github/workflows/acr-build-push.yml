@@ -17,37 +17,23 @@ jobs:
     steps:
       - name: Check ACR secrets
         id: acr
+        env:
+          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+          ACR_REPOSITORY: ${{ secrets.ACR_REPOSITORY }}
         run: |
-          if [[ -n "${{ secrets.ACR_LOGIN_SERVER }}" && -n "${{ secrets.ACR_USERNAME }}" && -n "${{ secrets.ACR_PASSWORD }}" && -n "${{ secrets.ACR_REPOSITORY }}" ]]; then
+          if [[ -n "$ACR_LOGIN_SERVER" && -n "$ACR_USERNAME" && -n "$ACR_PASSWORD" && -n "$ACR_REPOSITORY" ]]; then
             echo "enabled=true" >> $GITHUB_OUTPUT
           else
             echo "enabled=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Checkout repository
-        if: steps.acr.outputs.enabled == 'true'
-        uses: actions/checkout@v4
-
-      - name: Filter changed paths
-        if: steps.acr.outputs.enabled == 'true'
-        uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            event-service:
-              - 'event-service/**'
-            user-service:
-              - 'user-service/**'
-            booking-service:
-              - 'booking-service/**'
-            payment-service:
-              - 'payment-service/**'
-
       - name: Set services output
         id: set-services
         run: |
           if [[ "${{ steps.acr.outputs.enabled }}" == "true" ]]; then
-            echo "changes=${{ steps.filter.outputs.changes }}" >> $GITHUB_OUTPUT
+            echo 'changes=["event-service","user-service","booking-service","payment-service"]' >> $GITHUB_OUTPUT
           else
             echo "changes=[]" >> $GITHUB_OUTPUT
           fi
