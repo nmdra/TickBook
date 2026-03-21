@@ -41,6 +41,17 @@ const validateEventCreate = (data) => {
   }
 
   // Price validation
+  if (data.price === undefined || data.price === null) {
+    errors.push('Price is required');
+  } else if (typeof data.price !== 'number') {
+    errors.push('Price must be a number');
+  } else if (data.price <= 0) {
+    errors.push('Price must be greater than 0');
+  } else if (data.price > 999999.99) {
+    errors.push('Price cannot exceed 999,999.99');
+  }
+
+  // Optional: Description validation
 
 
   return {
