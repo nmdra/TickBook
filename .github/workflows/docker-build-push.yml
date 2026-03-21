@@ -65,7 +65,7 @@ jobs:
             [payment-service]=payment-service/Dockerfile
             [nginx-gateway]=nginx/Dockerfile
           )
-          dockerfile=${dockerfiles[${{ matrix.service }}]}
+          dockerfile=${dockerfiles["${{ matrix.service }}"]}
           if [[ -z "$dockerfile" ]]; then
             echo "Unknown service: ${{ matrix.service }}" >&2
             exit 1
