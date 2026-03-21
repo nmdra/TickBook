@@ -158,6 +158,25 @@ services:
       - booking-service
     <<: *default-network
 
+  nginx-gateway:
+    image: nginx-gateway
+    build: ./nginx
+    ports:
+      - "${GATEWAY_PORT:-8080}:80"
+    environment:
+      NGINX_HOST: ${NGINX_HOST:-localhost}
+      NGINX_PORT: ${NGINX_INTERNAL_PORT:-80}
+      EVENT_SERVICE_URL: http://event-service:3001
+      USER_SERVICE_URL: http://user-service:3002
+      BOOKING_SERVICE_URL: http://booking-service:3003
+      PAYMENT_SERVICE_URL: http://payment-service:3004
+    depends_on:
+      - event-service
+      - user-service
+      - booking-service
+      - payment-service
+    <<: *default-network
+
 volumes:
   pg_event_data:
   pg_user_data:

@@ -19,7 +19,7 @@ variable "BUILD_DATE" {
 }
 
 group "default" {
-  targets = ["event-service", "user-service", "booking-service", "payment-service"]
+  targets = ["event-service", "user-service", "booking-service", "payment-service", "nginx-gateway"]
 }
 
 target "services" {
@@ -41,6 +41,25 @@ target "services" {
   labels = {
     "org.opencontainers.image.title"       = "${service}"
     "org.opencontainers.image.description" = "Docker image for ${service}"
+    "org.opencontainers.image.source"      = "https://github.com/${REPO}"
+    "org.opencontainers.image.revision"    = "${SHA_TAG}"
+    "org.opencontainers.image.created"     = "${BUILD_DATE}"
+    "org.opencontainers.image.version"     = "${TAG}"
+  }
+}
+
+target "nginx-gateway" {
+  context    = "./nginx"
+  dockerfile = "Dockerfile"
+
+  tags = compact([
+    "${REGISTRY}/${REPO}/nginx-gateway:${TAG}",
+    SHA_TAG != "" ? "${REGISTRY}/${REPO}/nginx-gateway:${SHA_TAG}" : "",
+  ])
+
+  labels = {
+    "org.opencontainers.image.title"       = "nginx-gateway"
+    "org.opencontainers.image.description" = "Docker image for nginx-gateway"
     "org.opencontainers.image.source"      = "https://github.com/${REPO}"
     "org.opencontainers.image.revision"    = "${SHA_TAG}"
     "org.opencontainers.image.created"     = "${BUILD_DATE}"
