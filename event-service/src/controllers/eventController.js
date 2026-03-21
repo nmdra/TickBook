@@ -1,6 +1,7 @@
 const { pool } = require('../config/db');
 const { getRedis } = require('../config/redis');
 const { publishEvent } = require('../config/kafka');
+const { validateEventCreate } = require('../validator/eventValidation');
 
 const CACHE_TTL = 60;
 
@@ -77,12 +78,13 @@ const createEvent = async (req, res) => {
   try {
     const { title, description, venue, date, total_tickets, price } = req.body;
 
-    if (!title || !date || !total_tickets || !price) {
-      return res.status(400).json({ error: 'Missing required fields: title, date, total_tickets, price' });
-    }
-
-    if (total_tickets <= 0 || price <= 0) {
-      return res.status(400).json({ error: 'total_tickets and price must be positive numbers' });
+    // Validate input
+    const validation = validateEventCreate(req.body);
+    if (!validation.valid) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        details: validation.errors 
+      });
     }
 
     const result = await pool.query(
