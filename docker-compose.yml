@@ -170,8 +170,6 @@ services:
       USER_SERVICE_URL: http://user-service:3002
       BOOKING_SERVICE_URL: http://booking-service:3003
       PAYMENT_SERVICE_URL: http://payment-service:3004
-    volumes:
-      - ./nginx/templates:/etc/nginx/templates:ro
     depends_on:
       - event-service
       - user-service
