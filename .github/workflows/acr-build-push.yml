@@ -8,7 +8,7 @@ on:
 jobs:
   detect-changes:
     name: Detect Changed Services
-    if: ${{ secrets.ACR_LOGIN_SERVER != null && secrets.ACR_LOGIN_SERVER != '' && secrets.ACR_USERNAME != null && secrets.ACR_USERNAME != '' && secrets.ACR_PASSWORD != null && secrets.ACR_PASSWORD != '' && secrets.ACR_REPOSITORY != null && secrets.ACR_REPOSITORY != '' }}
+    if: ${{ secrets.ACR_LOGIN_SERVER && secrets.ACR_USERNAME && secrets.ACR_PASSWORD && secrets.ACR_REPOSITORY }}
     runs-on: ubuntu-latest
     outputs:
       services: ${{ steps.filter.outputs.changes }}
