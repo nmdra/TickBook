@@ -3,6 +3,8 @@ name: Docker Build, Scan, and Push (Manual)
 on:
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   detect-changes:
     name: Select Services
