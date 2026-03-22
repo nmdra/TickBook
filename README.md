@@ -38,7 +38,7 @@ TickBook is a full-stack ticket booking platform composed of four independently 
 | **Authentication** | JWT (jsonwebtoken), bcryptjs |
 | **API Docs** | Swagger / OpenAPI 3.0 (swagger-jsdoc, swaggo) |
 | **Containerization** | Docker, Docker Compose |
-| **CI/CD** | GitHub Actions, GitHub Container Registry (GHCR) |
+| **CI/CD** | GitHub Actions, GHCR (optional ACR push) |
 
 ## Architecture
 
@@ -184,8 +184,12 @@ docker run -p 3001:3001 \
 
 ### Service URLs (after `docker compose up`)
 
+The nginx gateway proxy exposes a single entry point at `http://localhost:8080` (override with `GATEWAY_PORT`)
+and routes `/api/events`, `/api/users`, `/api/bookings`, and `/api/payments` to the corresponding services.
+
 | Service | URL | Swagger |
 |---------|-----|---------|
+| Gateway (nginx) | http://localhost:8080 | N/A |
 | Event Service | http://localhost:3001 | http://localhost:3001/api-docs |
 | User Service | http://localhost:3002 | http://localhost:3002/api-docs |
 | Booking Service | http://localhost:3003 | http://localhost:3003/swagger/ |
@@ -632,9 +636,13 @@ The collection includes all API endpoints with example request bodies and organi
 Each service has a GitHub Actions workflow that:
 1. Runs lint/build checks on pull requests
 2. Builds and pushes Docker images to GitHub Container Registry (GHCR) on merge to `main` using the repository `GITHUB_TOKEN`
+3. Optionally pushes the same images to Azure Container Registry (ACR) when ACR secrets are configured
 
 Required permissions/secrets:
 - `GITHUB_TOKEN` – must have `packages: write` and `contents: read` permissions (configured in the workflow or repo settings)
+- `ACR_LOGIN_SERVER` – ACR registry hostname (e.g., `example.azurecr.io`) for optional push
+- `ACR_USERNAME` – ACR username or service principal
+- `ACR_PASSWORD` – ACR password or service principal secret
 
 ## Project Structure
 

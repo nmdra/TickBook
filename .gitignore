@@ -29,3 +29,6 @@ npm-debug.log*
 
 # Go
 booking-service/booking-service
+
+# Docker Buildx cache
+.docker-tmp/

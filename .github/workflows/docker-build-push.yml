@@ -32,6 +32,8 @@ jobs:
               - 'booking-service/**'
             payment-service:
               - 'payment-service/**'
+            nginx-gateway:
+              - 'nginx/**'
 
   build-scan-push:
     name: Build & Scan - ${{ matrix.service }}
@@ -43,6 +45,10 @@ jobs:
       packages: write
       security-events: write
       actions: read
+    env:
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
 
     strategy:
       fail-fast: false
@@ -53,10 +59,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Resolve service paths
+        id: service-paths
+        run: |
+          declare -A dockerfiles=(
+            [event-service]=event-service/Dockerfile
+            [user-service]=user-service/Dockerfile
+            [booking-service]=booking-service/Dockerfile
+            [payment-service]=payment-service/Dockerfile
+            [nginx-gateway]=nginx/Dockerfile
+          )
+          dockerfile=${dockerfiles["${{ matrix.service }}"]}
+          if [[ -z "$dockerfile" ]]; then
+            echo "Unknown service: ${{ matrix.service }}" >&2
+            exit 1
+          fi
+          echo "dockerfile=$dockerfile" >> $GITHUB_OUTPUT
+
       - name: Lint Dockerfile with Hadolint
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          dockerfile: ${{ matrix.service }}/Dockerfile
+          dockerfile: ${{ steps.service-paths.outputs.dockerfile }}
 
       - name: Set up build variables
         id: vars
@@ -99,7 +122,7 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           image: ghcr.io/${{ steps.vars.outputs.repo }}/${{ matrix.service }}:${{ steps.vars.outputs.sha_tag }}
-          args: --file=${{ matrix.service }}/Dockerfile --sarif-file-output=snyk.sarif
+          args: --file=${{ steps.service-paths.outputs.dockerfile }} --sarif-file-output=snyk.sarif
 
       - name: Save Snyk SARIF as an Artifact
         uses: actions/upload-artifact@v4
@@ -121,6 +144,29 @@ jobs:
         uses: docker/bake-action@v5
         env:
           REGISTRY: ghcr.io
+          REPO: ${{ steps.vars.outputs.repo }}
+          TAG: ${{ steps.vars.outputs.tag }}
+          SHA_TAG: ${{ steps.vars.outputs.sha_tag }}
+        with:
+          files: ./docker-bake.hcl
+          targets: ${{ matrix.service }}
+          push: true
+          set: |
+            ${{ matrix.service }}.cache-from=type=gha,scope=${{ matrix.service }}
+
+      - name: Login to Azure Container Registry
+        if: github.event_name != 'pull_request' && env.ACR_LOGIN_SERVER != '' && env.ACR_USERNAME != '' && env.ACR_PASSWORD != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ACR_LOGIN_SERVER }}
+          username: ${{ env.ACR_USERNAME }}
+          password: ${{ env.ACR_PASSWORD }}
+
+      - name: Push image to Azure Container Registry
+        if: github.event_name != 'pull_request' && env.ACR_LOGIN_SERVER != '' && env.ACR_USERNAME != '' && env.ACR_PASSWORD != ''
+        uses: docker/bake-action@v5
+        env:
+          REGISTRY: ${{ env.ACR_LOGIN_SERVER }}
           REPO: ${{ steps.vars.outputs.repo }}
           TAG: ${{ steps.vars.outputs.tag }}
           SHA_TAG: ${{ steps.vars.outputs.sha_tag }}
