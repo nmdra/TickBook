@@ -15,7 +15,12 @@ const helmet = require('helmet');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
 const { initDB } = require('./config/db');
-const { connectConsumer, disconnectConsumer } = require('./config/kafka');
+const {
+  connectConsumer,
+  connectProducer,
+  disconnectConsumer,
+  disconnectProducer,
+} = require('./config/kafka');
 const paymentRoutes = require('./routes/paymentRoutes');
 
 const app = express();
@@ -58,17 +63,20 @@ const start = async () => {
   });
 
   void connectConsumer();
+  void connectProducer();
 };
 
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received. Shutting down gracefully...');
   await disconnectConsumer();
+  await disconnectProducer();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   console.log('SIGINT received. Shutting down gracefully...');
   await disconnectConsumer();
+  await disconnectProducer();
   process.exit(0);
 });
 

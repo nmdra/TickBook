@@ -1,0 +1,118 @@
+package kafka
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"strings"
+	"time"
+
+	kafkago "github.com/segmentio/kafka-go"
+
+	"github.com/nmdra/TickBook/booking-service/database"
+	"github.com/nmdra/TickBook/booking-service/models"
+)
+
+var paymentReader *kafkago.Reader
+var paymentCancel context.CancelFunc
+
+func StartPaymentConsumer(brokers, groupID, topic string) {
+	if paymentReader != nil {
+		return
+	}
+
+	brokerList := strings.Split(brokers, ",")
+	paymentReader = kafkago.NewReader(kafkago.ReaderConfig{
+		Brokers:  brokerList,
+		GroupID:  groupID,
+		Topic:    topic,
+		MinBytes: 1e3,
+		MaxBytes: 10e6,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	paymentCancel = cancel
+
+	go func() {
+		for {
+			msg, err := paymentReader.ReadMessage(ctx)
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return
+				}
+				log.Printf("Warning: payment consumer read error: %v", err)
+				time.Sleep(2 * time.Second)
+				continue
+			}
+
+			if err := handlePaymentEvent(msg.Value); err != nil {
+				log.Printf("Warning: failed to handle payment event: %v", err)
+			}
+		}
+	}()
+
+	log.Printf("Kafka payment consumer listening on topic '%s' with group '%s'", topic, groupID)
+}
+
+func StopPaymentConsumer() {
+	if paymentCancel != nil {
+		paymentCancel()
+	}
+	if paymentReader != nil {
+		if err := paymentReader.Close(); err != nil {
+			log.Printf("Warning: failed to close payment consumer: %v", err)
+		}
+	}
+}
+
+func handlePaymentEvent(message []byte) error {
+	var event models.KafkaPaymentEvent
+	if err := json.Unmarshal(message, &event); err != nil {
+		return fmt.Errorf("invalid payment event payload: %w", err)
+	}
+
+	eventType := strings.TrimSpace(event.EventType)
+	if eventType == "" && event.Status != "" {
+		eventType = fmt.Sprintf("payment.%s", strings.TrimSpace(event.Status))
+	}
+
+	if event.BookingID == 0 {
+		return errors.New("payment event missing booking_id")
+	}
+
+	switch eventType {
+	case "payment.completed":
+		return updateBookingStatusIfAllowed(event.BookingID, "confirmed", "cancelled")
+	case "payment.failed":
+		return updateBookingStatusIfAllowed(event.BookingID, "cancelled", "confirmed")
+	case "payment.refunded":
+		return updateBookingStatusIfAllowed(event.BookingID, "cancelled", "")
+	default:
+		log.Printf("Ignoring payment event type: %s", eventType)
+		return nil
+	}
+}
+
+func updateBookingStatusIfAllowed(bookingID int, newStatus string, disallowedStatus string) error {
+	query := "UPDATE bookings SET status = $1, updated_at = $2 WHERE id = $3"
+	args := []interface{}{newStatus, time.Now(), bookingID}
+
+	if disallowedStatus != "" {
+		query += " AND status <> $4"
+		args = append(args, disallowedStatus)
+	}
+
+	result, err := database.DB.Exec(query, args...)
+	if err != nil {
+		return err
+	}
+
+	affected, err := result.RowsAffected()
+	if err == nil && affected == 0 {
+		log.Printf("No booking update applied for booking %d (status unchanged or not found)", bookingID)
+	}
+
+	return nil
+}

@@ -32,3 +32,16 @@ type KafkaBookingEvent struct {
 	Amount    float64 `json:"amount"`
 	Status    string  `json:"status"`
 }
+
+type KafkaPaymentEvent struct {
+	EventType     string  `json:"event_type"`
+	PaymentID     int     `json:"payment_id"`
+	BookingID     int     `json:"booking_id"`
+	UserID        int     `json:"user_id"`
+	Amount        float64 `json:"amount"`
+	Currency      string  `json:"currency"`
+	Status        string  `json:"status"`
+	PaymentMethod string  `json:"payment_method"`
+	FailureReason string  `json:"failure_reason"`
+	PaidAt        string  `json:"paid_at"`
+}
