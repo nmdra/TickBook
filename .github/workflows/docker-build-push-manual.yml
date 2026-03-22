@@ -1,12 +1,7 @@
-name: Docker Build, Scan, and Push (Push)
+name: Docker Build, Scan, and Push (Manual)
 
 on:
-  push:
-    branches:
-      - main
-      - Development
-    tags:
-      - 'v*'
+  workflow_dispatch:
 
 jobs:
   detect-changes:
