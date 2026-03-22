@@ -182,7 +182,6 @@ const connectProducer = async () => {
 };
 
 const disconnectProducer = async () => {
-  isShuttingDown = true;
   isProducerConnected = false;
 
   try {

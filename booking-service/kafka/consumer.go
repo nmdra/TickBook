@@ -92,24 +92,36 @@ func handlePaymentEvent(message []byte) error {
 
 	switch eventType {
 	case "payment.completed":
-		return updateBookingStatusIfAllowed(event.BookingID, bookingStatusConfirmed, bookingStatusCancelled)
+		return updateBookingStatusUnlessCurrentStatus(
+			event.BookingID,
+			bookingStatusConfirmed,
+			bookingStatusCancelled,
+		)
 	case "payment.failed":
-		return updateBookingStatusIfAllowed(event.BookingID, bookingStatusCancelled, bookingStatusConfirmed)
+		return updateBookingStatusUnlessCurrentStatus(
+			event.BookingID,
+			bookingStatusCancelled,
+			bookingStatusConfirmed,
+		)
 	case "payment.refunded":
-		return updateBookingStatusIfAllowed(event.BookingID, bookingStatusCancelled, "")
+		return updateBookingStatusUnlessCurrentStatus(event.BookingID, bookingStatusCancelled, "")
 	default:
 		log.Printf("Ignoring payment event type: %s", eventType)
 		return nil
 	}
 }
 
-func updateBookingStatusIfAllowed(bookingID int, newStatus string, skipIfCurrentStatus string) error {
+func updateBookingStatusUnlessCurrentStatus(
+	bookingID int,
+	newStatus string,
+	skipIfStatus string,
+) error {
 	query := "UPDATE bookings SET status = $1, updated_at = $2 WHERE id = $3"
 	args := []interface{}{newStatus, time.Now(), bookingID}
 
-	if skipIfCurrentStatus != "" {
+	if skipIfStatus != "" {
 		query += " AND status <> $4"
-		args = append(args, skipIfCurrentStatus)
+		args = append(args, skipIfStatus)
 	}
 
 	result, err := database.DB.Exec(query, args...)
