@@ -1,6 +1,6 @@
 # TickBook
 
-A microservices-based event ticket booking system built with **Node.js**, **Go**, and **Java (Spring Boot)**. TickBook allows users to register, browse events, book tickets, and process payments — all through a distributed architecture that uses REST for synchronous calls and Apache Kafka for asynchronous event streaming.
+A microservices-based event ticket booking system built with **Node.js** and **Go**. TickBook allows users to register, browse events, book tickets, and process payments — all through a distributed architecture that uses REST for synchronous calls and Apache Kafka for asynchronous event streaming.
 
 ## Table of Contents
 
@@ -30,15 +30,15 @@ TickBook is a full-stack ticket booking platform composed of four independently 
 
 | Category | Technologies |
 |----------|-------------|
-| **Languages** | JavaScript (Node.js 20), Go 1.22+, Java 21 |
-| **Frameworks** | Express.js, gorilla/mux, Spring Boot 3.4 |
+| **Languages** | JavaScript (Node.js 20), Go 1.22+ |
+| **Frameworks** | Express.js, gorilla/mux |
 | **Databases** | PostgreSQL 17 |
 | **Caching** | Redis 7 |
 | **Messaging** | Apache Kafka (KRaft mode) |
 | **Authentication** | JWT (jsonwebtoken), bcryptjs |
-| **API Docs** | Swagger / OpenAPI 3.0 (swagger-jsdoc, swaggo, springdoc-openapi) |
+| **API Docs** | Swagger / OpenAPI 3.0 (swagger-jsdoc, swaggo) |
 | **Containerization** | Docker, Docker Compose |
-| **CI/CD** | GitHub Actions, GitHub Container Registry (GHCR) |
+| **CI/CD** | GitHub Actions, GHCR (optional ACR push) |
 
 ## Architecture
 
@@ -54,7 +54,7 @@ TickBook consists of four microservices that communicate via **REST** (synchrono
                                ▼                        ▼
                        ┌───────────────┐
                        │Payment Service│
-                       │ (Spring Boot) │
+                       │  (Node.js)    │
                        └───────────────┘
 ```
 
@@ -65,19 +65,18 @@ TickBook consists of four microservices that communicate via **REST** (synchrono
 | **Event Service** | Node.js / Express | 3001 | PostgreSQL + Redis | Manages events, caching with Redis |
 | **User Service** | Node.js / Express | 3002 | PostgreSQL | User registration, authentication (JWT) |
 | **Booking Service** | Go / gorilla/mux | 3003 | PostgreSQL | Booking management, REST calls to Event & User services |
-| **Payment Service** | Java / Spring Boot | 3004 | PostgreSQL | Payment processing, Kafka consumer for bookings |
+| **Payment Service** | Node.js / Express | 3004 | PostgreSQL | Payment processing, Kafka consumer for bookings |
 
 ### Inter-Service Communication
 
 - **REST (Synchronous):** Booking Service calls Event Service (check availability) and User Service (validate user).
-- **Kafka (Asynchronous):** Booking Service publishes to `bookings` topic → Payment Service consumes and creates payments. Event Service publishes to `events` topic.
+- **Kafka (Asynchronous):** Booking Service publishes to `bookings` topic → Payment Service consumes and creates payments. Payment Service publishes payment status updates to `payments` → Booking Service consumes to confirm or cancel bookings. Event Service publishes to `events` topic.
 
 ## Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/install/) (for containerized setup)
-- [Node.js 20+](https://nodejs.org/) & npm (for Event and User services)
+- [Node.js 20+](https://nodejs.org/) & npm (for Event, User, and Payment services)
 - [Go 1.22+](https://go.dev/dl/) (for Booking Service)
-- [Java 21](https://adoptium.net/) & [Maven 3.9+](https://maven.apache.org/) (for Payment Service)
 - [PostgreSQL 17](https://www.postgresql.org/download/) (if running locally without Docker)
 - [Redis 7](https://redis.io/download) (if running locally without Docker)
 - [Apache Kafka](https://kafka.apache.org/downloads) (if running locally without Docker)
@@ -134,9 +133,9 @@ go build -o booking-service .
 
 ```bash
 cd payment-service
-# Configure environment variables (see Environment Variables section)
-mvn package -DskipTests     # Build the JAR
-java -jar target/*.jar      # Start the service
+cp .env.example .env        # Edit .env with your local settings
+npm ci                      # Install dependencies
+npm start                   # Start the service
 ```
 
 ## Docker Usage
@@ -185,12 +184,16 @@ docker run -p 3001:3001 \
 
 ### Service URLs (after `docker compose up`)
 
+The nginx gateway proxy exposes a single entry point at `http://localhost:8080` (override with `GATEWAY_PORT`)
+and routes `/api/events`, `/api/users`, `/api/bookings`, and `/api/payments` to the corresponding services.
+
 | Service | URL | Swagger |
 |---------|-----|---------|
+| Gateway (nginx) | http://localhost:8080 | N/A |
 | Event Service | http://localhost:3001 | http://localhost:3001/api-docs |
 | User Service | http://localhost:3002 | http://localhost:3002/api-docs |
 | Booking Service | http://localhost:3003 | http://localhost:3003/swagger/ |
-| Payment Service | http://localhost:3004 | http://localhost:3004/swagger-ui.html |
+| Payment Service | http://localhost:3004 | http://localhost:3004/api-docs |
 
 ## API Documentation
 
@@ -507,13 +510,13 @@ Response `201 Created`:
 ```json
 {
   "id": 1,
-  "bookingId": 1,
-  "userId": 1,
-  "amount": 199.98,
+  "booking_id": 1,
+  "user_id": 1,
+  "amount": "199.98",
   "status": "pending",
-  "paymentMethod": "credit_card",
-  "createdAt": "2025-01-10T08:35:00.000Z",
-  "updatedAt": "2025-01-10T08:35:00.000Z"
+  "payment_method": "credit_card",
+  "created_at": "2025-01-10T08:35:00.000Z",
+  "updated_at": "2025-01-10T08:35:00.000Z"
 }
 ```
 
@@ -599,6 +602,8 @@ Each service reads its configuration from environment variables. Copy the `.env.
 | `DB_PASSWORD` | PostgreSQL password | `postgres` |
 | `DB_NAME` | Database name | `bookingdb` |
 | `KAFKA_BROKERS` | Kafka broker addresses | `localhost:9092` |
+| `KAFKA_PAYMENTS_TOPIC` | Kafka topic for payment status events | `payments` |
+| `KAFKA_PAYMENTS_GROUP` | Kafka consumer group for payment events | `booking-service` |
 | `EVENT_SERVICE_URL` | Event Service base URL | `http://localhost:3001` |
 | `USER_SERVICE_URL` | User Service base URL | `http://localhost:3002` |
 
@@ -613,6 +618,7 @@ Each service reads its configuration from environment variables. Copy the `.env.
 | `DB_PASSWORD` | PostgreSQL password | `postgres` |
 | `DB_NAME` | Database name | `paymentdb` |
 | `KAFKA_BROKERS` | Kafka broker addresses | `localhost:9092` |
+| `KAFKA_PAYMENTS_TOPIC` | Kafka topic for payment status events | `payments` |
 | `BOOKING_SERVICE_URL` | Booking Service base URL | `http://localhost:3003` |
 
 ## Postman Collection
@@ -633,9 +639,13 @@ The collection includes all API endpoints with example request bodies and organi
 Each service has a GitHub Actions workflow that:
 1. Runs lint/build checks on pull requests
 2. Builds and pushes Docker images to GitHub Container Registry (GHCR) on merge to `main` using the repository `GITHUB_TOKEN`
+3. Optionally pushes the same images to Azure Container Registry (ACR) when ACR secrets are configured
 
 Required permissions/secrets:
 - `GITHUB_TOKEN` – must have `packages: write` and `contents: read` permissions (configured in the workflow or repo settings)
+- `ACR_LOGIN_SERVER` – ACR registry hostname (e.g., `example.azurecr.io`) for optional push
+- `ACR_USERNAME` – ACR username or service principal
+- `ACR_PASSWORD` – ACR password or service principal secret
 
 ## Project Structure
 
@@ -644,7 +654,7 @@ TickBook/
 ├── event-service/          # Node.js – Event management
 ├── user-service/           # Node.js – User auth & management
 ├── booking-service/        # Go – Booking management
-├── payment-service/        # Spring Boot – Payment processing
+├── payment-service/        # Node.js – Payment processing
 ├── postman/                # Postman API collection
 ├── docker-compose.yml      # Local development orchestration
 └── .github/workflows/      # CI/CD pipelines

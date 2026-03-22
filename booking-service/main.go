@@ -14,6 +14,7 @@ import (
 	"github.com/nmdra/TickBook/booking-service/handlers"
 	"github.com/nmdra/TickBook/booking-service/kafka"
 
+	"github.com/rs/cors"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
@@ -22,6 +23,7 @@ func main() {
 
 	database.Connect(cfg)
 	kafka.InitProducer(cfg.KafkaBrokers)
+	kafka.StartPaymentConsumer(cfg.KafkaBrokers, cfg.KafkaPaymentsGroup, cfg.KafkaPaymentsTopic)
 
 	handlers.EventServiceURL = cfg.EventServiceURL
 	handlers.UserServiceURL = cfg.UserServiceURL
@@ -52,19 +54,29 @@ func main() {
 	api.HandleFunc("/{id:[0-9]+}", handlers.DeleteBooking).Methods("DELETE")
 	api.HandleFunc("/user/{userId:[0-9]+}", handlers.GetBookingsByUser).Methods("GET")
 
+	// Wrap router with CORS
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"}, // allow all origins
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization"}, // include common headers
+		AllowCredentials: true,                                      // optional if you use cookies/auth
+	})
+	handler := c.Handler(r)
+
 	// Graceful shutdown
 	go func() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 		<-sigChan
 		log.Println("Shutting down...")
+		kafka.StopPaymentConsumer()
 		kafka.Close()
 		os.Exit(0)
 	}()
 
 	addr := ":" + cfg.Port
 	log.Printf("Booking Service starting on port %s", cfg.Port)
-	if err := http.ListenAndServe(addr, r); err != nil {
+	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }

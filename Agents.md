@@ -11,7 +11,7 @@ This is a **monorepo** containing all four microservices:
 - `event-service/` – Node.js/Express service for event management
 - `user-service/` – Node.js/Express service for user authentication and management
 - `booking-service/` – Go service for booking management
-- `payment-service/` – Spring Boot service for payment processing
+- `payment-service/` – Node.js/Express service for payment processing
 
 ## Service Details
 
@@ -49,14 +49,15 @@ This is a **monorepo** containing all four microservices:
 - **Run:** `./booking-service`
 
 ### Payment Service (`payment-service/`)
-- **Language:** Java 21
-- **Framework:** Spring Boot 3.4.3
-- **Database:** PostgreSQL (via Spring Data JPA)
-- **Messaging:** Kafka consumer (via Spring Kafka)
+- **Language:** JavaScript (Node.js 20)
+- **Framework:** Express.js
+- **Database:** PostgreSQL (via `pg` library)
+- **Messaging:** Kafka consumer (via `kafkajs`)
 - **Inter-service calls:** REST to Booking Service
 - **Port:** 3004
-- **Build:** `mvn package -DskipTests`
-- **Run:** `java -jar target/*.jar`
+- **Entry point:** `src/index.js`
+- **Build:** `npm ci`
+- **Run:** `npm start` or `npm run dev` (with nodemon)
 
 ## Communication Patterns
 
