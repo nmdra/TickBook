@@ -299,6 +299,12 @@ export class UserService {
     }
 
     if (payload.email) {
+      const existingUser = await this.userRepository.findByEmail(payload.email);
+
+      if (existingUser && existingUser.id !== parsedId) {
+        throw new Error('EMAIL_ALREADY_EXISTS');
+      }
+
       changes.email = payload.email;
     }
 

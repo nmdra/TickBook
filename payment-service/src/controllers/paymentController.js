@@ -1,4 +1,5 @@
 const { getStripeClient, isStripeConfigured } = require('../config/stripe');
+const { publishPaymentEvent } = require('../config/kafka');
 const { getBookingById, updateBookingStatus } = require('../services/bookingService');
 const {
   DEFAULT_CURRENCY,
@@ -18,6 +19,7 @@ const {
 const SERVICE_PORT = process.env.PORT || 3004;
 const DEFAULT_SUCCESS_URL = `http://localhost:${SERVICE_PORT}/api/payments/stripe/success?session_id={CHECKOUT_SESSION_ID}`;
 const DEFAULT_CANCEL_URL = `http://localhost:${SERVICE_PORT}/api/payments/stripe/cancel?session_id={CHECKOUT_SESSION_ID}`;
+const EMITTED_PAYMENT_STATUSES = new Set(['completed', 'failed', 'refunded']);
 
 const ensureUrlContainsSessionId = (url, fallbackUrl) => {
   const resolved = (url && String(url).trim()) || fallbackUrl;
@@ -56,6 +58,18 @@ const syncBookingConfirmation = async (payment) => {
     console.warn(
       `Payment ${payment.id} completed but booking ${payment.booking_id} confirmation failed: ${err.message}`
     );
+  }
+};
+
+const emitPaymentStatusEvent = async (payment) => {
+  if (!payment || !EMITTED_PAYMENT_STATUSES.has(payment.status)) {
+    return;
+  }
+
+  try {
+    await publishPaymentEvent(`payment.${payment.status}`, payment);
+  } catch (err) {
+    console.warn(`Failed to publish payment.${payment.status} event: ${err.message}`);
   }
 };
 
@@ -130,6 +144,7 @@ const markStripeSessionCompleted = async (session) => {
 
   if (updatedPayment) {
     await syncBookingConfirmation(updatedPayment);
+    await emitPaymentStatusEvent(updatedPayment);
   }
 
   return updatedPayment;
@@ -142,7 +157,7 @@ const markStripeSessionFailed = async (session, failureReason) => {
     return payment;
   }
 
-  return updatePaymentStatusById(payment.id, 'failed', {
+  const updatedPayment = await updatePaymentStatusById(payment.id, 'failed', {
     paymentMethod: payment.payment_method === 'pending_selection' ? 'stripe' : payment.payment_method,
     stripeCheckoutSessionId: session.id || payment.stripe_checkout_session_id || null,
     stripePaymentIntentId:
@@ -155,6 +170,9 @@ const markStripeSessionFailed = async (session, failureReason) => {
     failureReason,
     providerResponse: session,
   });
+
+  await emitPaymentStatusEvent(updatedPayment);
+  return updatedPayment;
 };
 
 const markPaymentIntentFailed = async (paymentIntent, failureReason) => {
@@ -164,7 +182,7 @@ const markPaymentIntentFailed = async (paymentIntent, failureReason) => {
     return payment;
   }
 
-  return updatePaymentStatusById(payment.id, 'failed', {
+  const updatedPayment = await updatePaymentStatusById(payment.id, 'failed', {
     paymentMethod: payment.payment_method === 'pending_selection' ? 'stripe' : payment.payment_method,
     stripePaymentIntentId: paymentIntent.id,
     stripeCustomerId:
@@ -174,6 +192,9 @@ const markPaymentIntentFailed = async (paymentIntent, failureReason) => {
     failureReason,
     providerResponse: paymentIntent,
   });
+
+  await emitPaymentStatusEvent(updatedPayment);
+  return updatedPayment;
 };
 
 const getAllPayments = async (req, res) => {
@@ -252,6 +273,8 @@ const createPayment = async (req, res) => {
       await syncBookingConfirmation(updatedPayment);
     }
 
+    await emitPaymentStatusEvent(updatedPayment);
+
     res.status(201).json(updatedPayment);
   } catch (err) {
     console.error('Error creating payment:', err.message);
@@ -293,6 +316,8 @@ const updatePaymentStatus = async (req, res) => {
     if (updatedPayment.status === 'completed') {
       await syncBookingConfirmation(updatedPayment);
     }
+
+    await emitPaymentStatusEvent(updatedPayment);
 
     res.json(updatedPayment);
   } catch (err) {
@@ -385,6 +410,8 @@ const createStripeCheckoutSession = async (req, res) => {
       providerResponse: session,
       paidAt: null,
     });
+
+    await emitPaymentStatusEvent(updatedPayment);
 
     res.status(201).json({
       payment: updatedPayment,
@@ -515,10 +542,11 @@ const handleStripeWebhook = async (req, res) => {
         const charge = event.data.object;
         const payment = await getPaymentByStripePaymentIntentId(charge.payment_intent);
         if (payment) {
-          await updatePaymentStatusById(payment.id, 'refunded', {
+          const updatedPayment = await updatePaymentStatusById(payment.id, 'refunded', {
             providerResponse: charge,
             failureReason: null,
           });
+          await emitPaymentStatusEvent(updatedPayment);
         }
         break;
       }

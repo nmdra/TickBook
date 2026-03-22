@@ -8,6 +8,7 @@ const swaggerUi = require('swagger-ui-express');
 const { initDB } = require('./config/db');
 const { createRedisClient } = require('./config/redis');
 const { createKafkaProducer, disconnectKafka } = require('./config/kafka');
+const logger = require('./config/logger');
 const swaggerSpec = require('./swagger');
 const eventRoutes = require('./routes/eventRoutes');
 
@@ -34,7 +35,7 @@ const start = async () => {
   try {
     await initDB();
   } catch (err) {
-    console.error('Failed to initialize database:', err.message);
+    logger.error('Failed to initialize database', { error: err.message });
     process.exit(1);
   }
 
@@ -42,20 +43,20 @@ const start = async () => {
   await createKafkaProducer();
 
   app.listen(PORT, () => {
-    console.log(`Event Service running on port ${PORT}`);
-    console.log(`Swagger docs available at http://localhost:${PORT}/api-docs`);
+    logger.info(`Event Service running on port ${PORT}`);
+    logger.info(`Swagger docs available at http://localhost:${PORT}/api-docs`);
   });
 };
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, shutting down...');
+  logger.info('SIGTERM received, shutting down...');
   await disconnectKafka();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-  console.log('SIGINT received, shutting down...');
+  logger.info('SIGINT received, shutting down...');
   await disconnectKafka();
   process.exit(0);
 });

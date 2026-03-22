@@ -70,7 +70,7 @@ TickBook consists of four microservices that communicate via **REST** (synchrono
 ### Inter-Service Communication
 
 - **REST (Synchronous):** Booking Service calls Event Service (check availability) and User Service (validate user).
-- **Kafka (Asynchronous):** Booking Service publishes to `bookings` topic → Payment Service consumes and creates payments. Event Service publishes to `events` topic.
+- **Kafka (Asynchronous):** Booking Service publishes to `bookings` topic → Payment Service consumes and creates payments. Payment Service publishes payment status updates to `payments` → Booking Service consumes to confirm or cancel bookings. Event Service publishes to `events` topic.
 
 ## Prerequisites
 
@@ -602,6 +602,8 @@ Each service reads its configuration from environment variables. Copy the `.env.
 | `DB_PASSWORD` | PostgreSQL password | `postgres` |
 | `DB_NAME` | Database name | `bookingdb` |
 | `KAFKA_BROKERS` | Kafka broker addresses | `localhost:9092` |
+| `KAFKA_PAYMENTS_TOPIC` | Kafka topic for payment status events | `payments` |
+| `KAFKA_PAYMENTS_GROUP` | Kafka consumer group for payment events | `booking-service` |
 | `EVENT_SERVICE_URL` | Event Service base URL | `http://localhost:3001` |
 | `USER_SERVICE_URL` | User Service base URL | `http://localhost:3002` |
 
@@ -616,6 +618,7 @@ Each service reads its configuration from environment variables. Copy the `.env.
 | `DB_PASSWORD` | PostgreSQL password | `postgres` |
 | `DB_NAME` | Database name | `paymentdb` |
 | `KAFKA_BROKERS` | Kafka broker addresses | `localhost:9092` |
+| `KAFKA_PAYMENTS_TOPIC` | Kafka topic for payment status events | `payments` |
 | `BOOKING_SERVICE_URL` | Booking Service base URL | `http://localhost:3003` |
 
 ## Postman Collection

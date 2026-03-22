@@ -1,4 +1,5 @@
 const Redis = require('ioredis');
+const logger = require('./logger');
 
 let redis = null;
 
@@ -15,14 +16,14 @@ const createRedisClient = () => {
     });
 
     redis.on('error', (err) => {
-      console.warn('Redis connection error:', err.message);
+      logger.warn('Redis connection error:', err.message);
     });
 
     redis.on('connect', () => {
-      console.log('Connected to Redis');
+      logger.info('Connected to Redis');
     });
   } catch (err) {
-    console.warn('Failed to initialize Redis:', err.message);
+    logger.warn('Failed to initialize Redis:', err.message);
     redis = null;
   }
 

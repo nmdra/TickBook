@@ -160,6 +160,12 @@ export class UserController {
       const user = await this.userService.updateUser(req.user!, req.params.id, req.body);
       return res.json(user);
     } catch (error) {
+      if (error instanceof Error && error.message === 'EMAIL_ALREADY_EXISTS') {
+        return res
+          .status(409)
+          .json({ message: 'Email is already in use by another account' });
+      }
+
       return this.handleError(res, error, 'Update user error:');
     }
   };

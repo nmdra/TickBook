@@ -139,17 +139,11 @@ services:
     build: ./user-service
     ports:
       - "${USER_SERVICE_PORT:-3002}:3002"
+    env_file:
+      - ./user-service/.env
     environment:
       PORT: 3002
-      DATABASE_URL: postgresql://postgres:postgres@postgres-user:5432/userdb?sslmode=disable
       KAFKA_BROKERS: kafka:29092
-      JWT_SECRET: demo-secret-change-in-production
-      JWT_REFRESH_SECRET: demo-refresh-secret-change-in-production
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-your-google-client-id}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-your-google-client-secret}
-      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:3002/api/users/auth/google/callback}
-      FRONTEND_SUCCESS_URL: ${FRONTEND_SUCCESS_URL:-http://localhost:3002/google-auth-success.html}
-      FRONTEND_DASHBOARD_URL: ${FRONTEND_DASHBOARD_URL:-http://localhost:3000/dashboard}
       BOOKING_SERVICE_URL: http://booking-service:3003
       PAYMENT_SERVICE_URL: http://payment-service:3004
     depends_on:
@@ -168,6 +162,8 @@ services:
       PORT: 3003
       DB_HOST: postgres-booking
       DB_NAME: bookingdb
+      KAFKA_PAYMENTS_TOPIC: payments
+      KAFKA_PAYMENTS_GROUP: booking-service
       EVENT_SERVICE_URL: http://event-service:3001
       USER_SERVICE_URL: http://user-service:3002
     depends_on:
@@ -190,6 +186,8 @@ services:
       PORT: 3004
       DB_HOST: postgres-payment
       DB_NAME: paymentdb
+      KAFKA_RECONNECT_INTERVAL_MS: 15000
+      KAFKA_PAYMENTS_TOPIC: payments
       BOOKING_SERVICE_URL: http://booking-service:3003
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
