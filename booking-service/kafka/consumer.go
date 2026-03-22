@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,7 +19,6 @@ import (
 const (
 	paymentConsumerMinBytes = 1e3
 	paymentConsumerMaxBytes = 10e6
-	paymentEventPrefix      = "payment."
 	bookingStatusConfirmed  = "confirmed"
 	bookingStatusCancelled  = "cancelled"
 	noStatusGuard           = ""
@@ -83,8 +83,8 @@ func handlePaymentEvent(message []byte) error {
 	}
 
 	eventType := strings.TrimSpace(event.EventType)
-	if eventType == "" && event.Status != "" {
-		eventType = fmt.Sprintf("%s%s", paymentEventPrefix, strings.TrimSpace(event.Status))
+	if eventType == "" {
+		return errors.New("payment event missing event_type")
 	}
 
 	if event.BookingID == 0 {
@@ -148,7 +148,19 @@ func updateBookingStatusUnlessCurrentStatus(
 
 	affected, err := result.RowsAffected()
 	if err == nil && affected == 0 {
-		log.Printf("No booking update applied for booking %d (status unchanged or not found)", bookingID)
+		var currentStatus string
+		statusErr := database.DB.QueryRow(
+			"SELECT status FROM bookings WHERE id = $1",
+			bookingID,
+		).Scan(&currentStatus)
+		if statusErr == sql.ErrNoRows {
+			log.Printf("Booking %d not found while processing payment event", bookingID)
+			return nil
+		}
+		if statusErr != nil {
+			return statusErr
+		}
+		log.Printf("Skipped booking %d update because status is %s", bookingID, currentStatus)
 	}
 
 	return nil

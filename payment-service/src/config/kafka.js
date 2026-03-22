@@ -206,12 +206,16 @@ const publishPaymentEvent = async (eventType, payment) => {
   }
 
   const parsedAmount = Number(payment.amount);
+  if (!Number.isFinite(parsedAmount)) {
+    console.warn('Skipping payment event publish due to invalid amount value.');
+    return;
+  }
   const payload = {
     event_type: eventType,
     payment_id: payment.id,
     booking_id: payment.booking_id,
     user_id: payment.user_id,
-    amount: Number.isFinite(parsedAmount) ? parsedAmount : 0,
+    amount: parsedAmount,
     currency: payment.currency,
     status: payment.status,
     payment_method: payment.payment_method,
