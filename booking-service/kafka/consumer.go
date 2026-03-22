@@ -21,6 +21,7 @@ const (
 	paymentEventPrefix      = "payment."
 	bookingStatusConfirmed  = "confirmed"
 	bookingStatusCancelled  = "cancelled"
+	noStatusGuard           = ""
 )
 
 var paymentReader *kafkago.Reader
@@ -92,23 +93,39 @@ func handlePaymentEvent(message []byte) error {
 
 	switch eventType {
 	case "payment.completed":
-		return updateBookingStatusUnlessCurrentStatus(
-			event.BookingID,
-			bookingStatusConfirmed,
-			bookingStatusCancelled,
-		)
+		return confirmBookingUnlessCancelled(event.BookingID)
 	case "payment.failed":
-		return updateBookingStatusUnlessCurrentStatus(
-			event.BookingID,
-			bookingStatusCancelled,
-			bookingStatusConfirmed,
-		)
+		return cancelBookingUnlessConfirmed(event.BookingID)
 	case "payment.refunded":
-		return updateBookingStatusUnlessCurrentStatus(event.BookingID, bookingStatusCancelled, "")
+		return cancelBooking(event.BookingID)
 	default:
 		log.Printf("Ignoring payment event type: %s", eventType)
 		return nil
 	}
+}
+
+func confirmBookingUnlessCancelled(bookingID int) error {
+	return updateBookingStatusUnlessCurrentStatus(
+		bookingID,
+		bookingStatusConfirmed,
+		bookingStatusCancelled,
+	)
+}
+
+func cancelBookingUnlessConfirmed(bookingID int) error {
+	return updateBookingStatusUnlessCurrentStatus(
+		bookingID,
+		bookingStatusCancelled,
+		bookingStatusConfirmed,
+	)
+}
+
+func cancelBooking(bookingID int) error {
+	return updateBookingStatusUnlessCurrentStatus(
+		bookingID,
+		bookingStatusCancelled,
+		noStatusGuard,
+	)
 }
 
 func updateBookingStatusUnlessCurrentStatus(
