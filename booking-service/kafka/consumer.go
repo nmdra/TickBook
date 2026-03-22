@@ -164,7 +164,12 @@ func updateBookingStatusUnlessCurrentStatus(
 		if statusErr != nil {
 			return statusErr
 		}
-		log.Printf("Status guard prevented updating booking %d because status is %s", bookingID, currentStatus)
+		log.Printf(
+			"Status guard prevented updating booking %d from %s to %s",
+			bookingID,
+			currentStatus,
+			newStatus,
+		)
 	}
 
 	return nil
