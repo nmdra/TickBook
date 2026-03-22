@@ -89,6 +89,40 @@ export class UserRepository {
     });
   }
 
+  async adjustTicketsBooked(userId: number, delta: number): Promise<boolean> {
+    if (!Number.isFinite(delta) || delta === 0) {
+      return true;
+    }
+
+    const user = await this.repository.findOne({
+      where: { id: userId },
+      relations: {
+        profile: true,
+      },
+    });
+
+    if (!user) {
+      return false;
+    }
+
+    if (!user.profile) {
+      const profile = new Profile();
+      profile.name = this.buildFallbackName(user.email);
+      profile.address = null;
+      profile.phoneNumber = null;
+      profile.totalTicketsBooked = 0;
+      profile.user = user;
+      user.profile = profile;
+    }
+
+    const currentTickets = user.profile.totalTicketsBooked ?? 0;
+    const nextTickets = Math.max(0, currentTickets + delta);
+    user.profile.totalTicketsBooked = nextTickets;
+
+    await this.repository.save(user);
+    return true;
+  }
+
   async updateById(id: number, changes: UpdateUserPersistenceInput): Promise<User | null> {
     const user = await this.repository.findOne({
       where: { id },

@@ -7,7 +7,7 @@ const swaggerUi = require('swagger-ui-express');
 
 const { initDB } = require('./config/db');
 const { createRedisClient } = require('./config/redis');
-const { createKafkaProducer, disconnectKafka } = require('./config/kafka');
+const { connectProducer, disconnectKafka } = require('./config/kafka');
 const swaggerSpec = require('./swagger');
 const eventRoutes = require('./routes/eventRoutes');
 
@@ -39,7 +39,7 @@ const start = async () => {
   }
 
   createRedisClient();
-  await createKafkaProducer();
+  await connectProducer();
 
   app.listen(PORT, () => {
     console.log(`Event Service running on port ${PORT}`);
