@@ -1,7 +1,7 @@
 const { pool } = require('../config/db');
 const { getRedis } = require('../config/redis');
 const { publishEvent } = require('../config/kafka');
-const { validateEventCreate } = require('../validator/eventValidation');
+const { validateEventCreate, validateEventUpdate } = require('../validator/eventValidation');
 const logger = require('../config/logger');
 
 const CACHE_TTL = 60;
@@ -162,6 +162,14 @@ const updateEvent = async (req, res) => {
   try {
     const { id } = req.params;
     const { title, description, venue, date, total_tickets, available_tickets, price, user_id } = req.body;
+
+    const validation = validateEventUpdate(req.body);
+    if (!validation.valid) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: validation.errors,
+      });
+    }
 
     const existing = await pool.query('SELECT * FROM events WHERE id = $1', [id]);
     if (existing.rows.length === 0) {

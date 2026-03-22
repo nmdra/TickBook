@@ -4,6 +4,7 @@ const logger = createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: format.combine(
     format.timestamp(),
+    format.splat(),
     format.errors({ stack: true }),
     format.json()
   ),

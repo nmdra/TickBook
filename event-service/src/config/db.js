@@ -31,8 +31,13 @@ const initDB = async () => {
     ADD COLUMN IF NOT EXISTS user_id INTEGER;
   `;
 
+  const indexQuery = `
+    CREATE INDEX IF NOT EXISTS events_user_id_idx ON events(user_id);
+  `;
+
   await pool.query(query);
   await pool.query(alterQuery);
+  await pool.query(indexQuery);
   logger.info('Database initialized');
 };
 

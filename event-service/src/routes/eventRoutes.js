@@ -260,6 +260,11 @@ router.post('/', createEvent);
  *               price:
  *                 type: number
  *                 format: float
+ *               user_id:
+ *                 type: integer
+ *                 nullable: true
+ *                 minimum: 1
+ *                 description: Event owner user ID; set null to clear
  *     responses:
  *       200:
  *         description: Event updated

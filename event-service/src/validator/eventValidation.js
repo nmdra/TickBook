@@ -78,6 +78,27 @@ const validateEventCreate = (data) => {
   };
 };
 
+/**
+ * Validates event update payload
+ * @param {object} data - Event data to validate
+ * @returns {object} - { valid: boolean, errors: string[] }
+ */
+const validateEventUpdate = (data) => {
+  const errors = [];
+
+  if (data.user_id !== undefined && data.user_id !== null) {
+    if (!Number.isInteger(data.user_id) || data.user_id <= 0) {
+      errors.push('user_id must be a positive integer');
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+};
+
 module.exports = {
   validateEventCreate,
+  validateEventUpdate,
 };
