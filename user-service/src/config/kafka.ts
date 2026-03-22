@@ -9,7 +9,6 @@ const kafka = new Kafka({
 
 const consumer = kafka.consumer({ groupId: 'user-service-group' });
 const reconnectIntervalMs = parseInt(process.env.KAFKA_RECONNECT_INTERVAL_MS || '', 10) || 15000;
-const userRepository = new UserRepository();
 
 let isConnecting = false;
 let isRunning = false;
@@ -72,7 +71,7 @@ const processBookingEvent = async (rawValue: string): Promise<void> => {
     typeof payload.data === 'object' && payload.data !== null
       ? (payload.data as Record<string, unknown>)
       : undefined;
-  const eventType = String(payload.event_type ?? payload.type ?? '');
+  const eventType = String(payload.event_type ?? '');
   if (eventType !== 'booking.created' && eventType !== 'booking.cancelled') {
     logger.info(`[Kafka] Ignoring event of type "${eventType}".`);
     return;
@@ -89,10 +88,11 @@ const processBookingEvent = async (rawValue: string): Promise<void> => {
 
   const normalizedTickets = Math.abs(tickets);
   const delta = eventType === 'booking.cancelled' ? -normalizedTickets : normalizedTickets;
+  const userRepository = new UserRepository();
   const updated = await userRepository.adjustTicketsBooked(userId, delta);
 
   if (!updated) {
-    logger.warn(`[Kafka] ${eventType} event for unknown user ${userId}.`);
+    logger.error(`[Kafka] ${eventType} event for unknown user ${userId}.`);
     return;
   }
 
