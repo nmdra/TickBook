@@ -83,7 +83,7 @@ containing an `event_type` plus the related data, while consumers react to those
 - **Producer:** Booking Service (Go)
 - **Consumers:**
   - Payment Service (`payment-service` group, `fromBeginning: true`)
-  - User Service (`user-service-group`, `fromBeginning: false`, currently logs events only)
+  - User Service (`user-service-group`, `fromBeginning: false`, adjusts user ticket counts based on booking events)
 
 | event_type | Payload fields | Consumer behavior |
 |------------|----------------|-------------------|
@@ -104,7 +104,8 @@ containing an `event_type` plus the related data, while consumers react to those
 #### Kafka Configuration
 
 - All services read `KAFKA_BROKERS` (comma-separated broker list).
-- Payment Service additionally uses `KAFKA_RECONNECT_INTERVAL_MS` to retry consumer connections.
+- Services with Kafka connections (`event-service`, `user-service`, `payment-service`) use
+  `KAFKA_RECONNECT_INTERVAL_MS` to retry connection attempts.
 
 ## Prerequisites
 

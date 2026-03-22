@@ -105,11 +105,10 @@ const processBookingEvent = async (rawValue: string): Promise<void> => {
 const startMessageLoop = (): void => {
   consumer
     .run({
-      eachMessage: async ({ topic, partition, message }) => {
+      eachMessage: async ({ message }) => {
         try {
           const value = message.value?.toString() ?? '';
           await processBookingEvent(value);
-          logger.info(`[Kafka] Received message on "${topic}" (partition ${partition}): ${value}`);
         } catch (error) {
           logger.warn(
             `Kafka consumer message handling failed (non-fatal): ${
