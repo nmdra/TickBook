@@ -139,17 +139,11 @@ services:
     build: ./user-service
     ports:
       - "${USER_SERVICE_PORT:-3002}:3002"
+    env_file:
+      - ./user-service/.env
     environment:
       PORT: 3002
-      DATABASE_URL: postgresql://postgres:postgres@postgres-user:5432/userdb?sslmode=disable
       KAFKA_BROKERS: kafka:29092
-      JWT_SECRET: demo-secret-change-in-production
-      JWT_REFRESH_SECRET: demo-refresh-secret-change-in-production
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-your-google-client-id}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-your-google-client-secret}
-      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:3002/api/users/auth/google/callback}
-      FRONTEND_SUCCESS_URL: ${FRONTEND_SUCCESS_URL:-http://localhost:3002/google-auth-success.html}
-      FRONTEND_DASHBOARD_URL: ${FRONTEND_DASHBOARD_URL:-http://localhost:3000/dashboard}
       BOOKING_SERVICE_URL: http://booking-service:3003
       PAYMENT_SERVICE_URL: http://payment-service:3004
     depends_on:
