@@ -55,9 +55,10 @@ func main() {
 
 	// Wrap router with CORS
 	c := cors.New(cors.Options{
-		AllowedOrigins: []string{"*"}, // Allow all origins
-		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders: []string{"*"},
+		AllowedOrigins:   []string{"*"}, // allow all origins
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization"}, // include common headers
+		AllowCredentials: true,                                      // optional if you use cookies/auth
 	})
 	handler := c.Handler(r)
 
