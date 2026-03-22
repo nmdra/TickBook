@@ -102,7 +102,7 @@ const processBookingEvent = async (rawValue: string): Promise<void> => {
     return;
   }
 
-  const delta = eventType === 'booking.cancelled' ? -tickets : tickets;
+  const delta = eventType === 'booking.created' ? tickets : -tickets;
   const updated = await getUserRepository().adjustTicketsBooked(userId, delta);
 
   if (!updated) {
