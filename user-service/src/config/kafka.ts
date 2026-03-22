@@ -9,6 +9,7 @@ const kafka = new Kafka({
 
 const consumer = kafka.consumer({ groupId: 'user-service-group' });
 const reconnectIntervalMs = parseInt(process.env.KAFKA_RECONNECT_INTERVAL_MS || '', 10) || 15000;
+const userRepository = new UserRepository();
 
 let isConnecting = false;
 let isRunning = false;
@@ -29,7 +30,13 @@ const scheduleReconnect = (): void => {
 
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
-    void connectConsumer();
+    connectConsumer().catch((error) => {
+      logger.warn(
+        `Kafka consumer reconnect failed (non-fatal): ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    });
   }, reconnectIntervalMs);
 
   logger.warn(`Kafka consumer unavailable. Retrying connection in ${reconnectIntervalMs}ms.`);
@@ -88,7 +95,6 @@ const processBookingEvent = async (rawValue: string): Promise<void> => {
 
   const normalizedTickets = Math.abs(tickets);
   const delta = eventType === 'booking.cancelled' ? -normalizedTickets : normalizedTickets;
-  const userRepository = new UserRepository();
   const updated = await userRepository.adjustTicketsBooked(userId, delta);
 
   if (!updated) {

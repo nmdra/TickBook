@@ -23,7 +23,9 @@ const scheduleReconnect = () => {
 
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
-    void connectProducer();
+    connectProducer().catch((err) => {
+      console.warn('Kafka producer reconnect failed:', err.message);
+    });
   }, reconnectIntervalMs);
 
   console.warn(`Kafka producer unavailable. Retrying connection in ${reconnectIntervalMs}ms.`);
