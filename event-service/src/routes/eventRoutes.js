@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getAllEvents,
+  getEventsByUserId,
   getEventById,
   createEvent,
   updateEvent,
@@ -33,6 +34,10 @@ const {
  *         venue:
  *           type: string
  *           description: Event venue
+ *         user_id:
+ *           type: integer
+ *           nullable: true
+ *           description: User ID of event creator
  *         date:
  *           type: string
  *           format: date-time
@@ -87,6 +92,35 @@ const {
  *         description: Internal server error
  */
 router.get('/', getAllEvents);
+
+/**
+ * @swagger
+ * /api/events/user/{userId}:
+ *   get:
+ *     summary: List events by user ID
+ *     tags: [Events]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: List of events created by the user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Event'
+ *       400:
+ *         description: Invalid user ID
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/user/:userId', getEventsByUserId);
 
 /**
  * @swagger
@@ -166,6 +200,8 @@ router.get('/:id/availability', checkAvailability);
  *                 type: string
  *               venue:
  *                 type: string
+ *               user_id:
+ *                 type: integer
  *               date:
  *                 type: string
  *                 format: date-time
