@@ -10,7 +10,6 @@ const kafka = new Kafka({
   brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
 });
 
-const bookingsTopic = process.env.KAFKA_BOOKINGS_TOPIC || 'bookings';
 const paymentsTopic = process.env.KAFKA_PAYMENTS_TOPIC || 'payments';
 
 const consumer = kafka.consumer({ groupId: 'payment-service' });
@@ -133,9 +132,9 @@ const connectConsumer = async () => {
 
   try {
     await consumer.connect();
-    await consumer.subscribe({ topic: bookingsTopic, fromBeginning: true });
+    await consumer.subscribe({ topic: 'bookings', fromBeginning: true });
     isRunning = true;
-    console.log(`Kafka consumer connected and listening on "${bookingsTopic}" topic`);
+    console.log('Kafka consumer connected and listening on "bookings" topic');
     startMessageLoop();
   } catch (err) {
     console.warn('Kafka consumer connection failed (non-fatal):', err.message);

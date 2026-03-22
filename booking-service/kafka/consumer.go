@@ -19,6 +19,8 @@ const (
 	paymentConsumerMinBytes = 1e3
 	paymentConsumerMaxBytes = 10e6
 	paymentEventPrefix      = "payment."
+	bookingStatusConfirmed  = "confirmed"
+	bookingStatusCancelled  = "cancelled"
 )
 
 var paymentReader *kafkago.Reader
@@ -90,24 +92,24 @@ func handlePaymentEvent(message []byte) error {
 
 	switch eventType {
 	case "payment.completed":
-		return updateBookingStatusIfAllowed(event.BookingID, "confirmed", "cancelled")
+		return updateBookingStatusIfAllowed(event.BookingID, bookingStatusConfirmed, bookingStatusCancelled)
 	case "payment.failed":
-		return updateBookingStatusIfAllowed(event.BookingID, "cancelled", "confirmed")
+		return updateBookingStatusIfAllowed(event.BookingID, bookingStatusCancelled, bookingStatusConfirmed)
 	case "payment.refunded":
-		return updateBookingStatusIfAllowed(event.BookingID, "cancelled", "")
+		return updateBookingStatusIfAllowed(event.BookingID, bookingStatusCancelled, "")
 	default:
 		log.Printf("Ignoring payment event type: %s", eventType)
 		return nil
 	}
 }
 
-func updateBookingStatusIfAllowed(bookingID int, newStatus string, disallowedStatus string) error {
+func updateBookingStatusIfAllowed(bookingID int, newStatus string, skipIfCurrentStatus string) error {
 	query := "UPDATE bookings SET status = $1, updated_at = $2 WHERE id = $3"
 	args := []interface{}{newStatus, time.Now(), bookingID}
 
-	if disallowedStatus != "" {
+	if skipIfCurrentStatus != "" {
 		query += " AND status <> $4"
-		args = append(args, disallowedStatus)
+		args = append(args, skipIfCurrentStatus)
 	}
 
 	result, err := database.DB.Exec(query, args...)
