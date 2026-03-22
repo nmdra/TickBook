@@ -207,7 +207,7 @@ const publishPaymentEvent = async (eventType, payment) => {
     return;
   }
 
-  const parsedAmount = Number.parseFloat(payment.amount);
+  const parsedAmount = Number(payment.amount);
   const payload = {
     event_type: eventType,
     payment_id: payment.id,

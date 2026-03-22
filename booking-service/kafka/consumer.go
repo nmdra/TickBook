@@ -15,6 +15,12 @@ import (
 	"github.com/nmdra/TickBook/booking-service/models"
 )
 
+const (
+	paymentConsumerMinBytes = 1e3
+	paymentConsumerMaxBytes = 10e6
+	paymentEventPrefix      = "payment."
+)
+
 var paymentReader *kafkago.Reader
 var paymentCancel context.CancelFunc
 
@@ -28,8 +34,8 @@ func StartPaymentConsumer(brokers, groupID, topic string) {
 		Brokers:  brokerList,
 		GroupID:  groupID,
 		Topic:    topic,
-		MinBytes: 1e3,
-		MaxBytes: 10e6,
+		MinBytes: paymentConsumerMinBytes,
+		MaxBytes: paymentConsumerMaxBytes,
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -75,7 +81,7 @@ func handlePaymentEvent(message []byte) error {
 
 	eventType := strings.TrimSpace(event.EventType)
 	if eventType == "" && event.Status != "" {
-		eventType = fmt.Sprintf("payment.%s", strings.TrimSpace(event.Status))
+		eventType = fmt.Sprintf("%s%s", paymentEventPrefix, strings.TrimSpace(event.Status))
 	}
 
 	if event.BookingID == 0 {
