@@ -92,13 +92,17 @@ const processBookingEvent = async (rawValue: string): Promise<void> => {
   const tickets = parseNumber(payload.tickets);
   const bookingId = parseNumber(payload.booking_id);
 
-  if (!userId || !tickets) {
+  if (userId === null || tickets === null) {
     logger.warn(`[Kafka] ${eventType} event missing user_id or tickets.`);
     return;
   }
 
-  const normalizedTickets = Math.abs(tickets);
-  const delta = eventType === 'booking.cancelled' ? -normalizedTickets : normalizedTickets;
+  if (tickets <= 0) {
+    logger.warn(`[Kafka] ${eventType} event has invalid ticket count: ${tickets}.`);
+    return;
+  }
+
+  const delta = eventType === 'booking.cancelled' ? -tickets : tickets;
   const updated = await getUserRepository().adjustTicketsBooked(userId, delta);
 
   if (!updated) {
