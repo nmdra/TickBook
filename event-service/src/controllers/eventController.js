@@ -173,7 +173,7 @@ const updateEvent = async (req, res) => {
 
     const existing = await pool.query('SELECT * FROM events WHERE id = $1', [id]);
     if (existing.rows.length === 0) {
-      return res.status(404).json({ error: 'Event not found:' });
+      return res.status(404).json({ error: 'Event not found' });
     }
 
     const newTotalTickets = total_tickets !== undefined ? total_tickets : existing.rows[0].total_tickets;
