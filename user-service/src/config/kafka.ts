@@ -82,19 +82,15 @@ const processBookingEvent = async (rawValue: string): Promise<void> => {
     return;
   }
 
-  const data =
-    typeof payload.data === 'object' && payload.data !== null
-      ? (payload.data as Record<string, unknown>)
-      : undefined;
   const eventType = String(payload.event_type ?? '');
   if (eventType !== 'booking.created' && eventType !== 'booking.cancelled') {
     logger.info(`[Kafka] Ignoring event of type "${eventType}".`);
     return;
   }
 
-  const userId = parseNumber(payload.user_id ?? payload.userId ?? data?.userId);
-  const tickets = parseNumber(payload.tickets ?? data?.tickets);
-  const bookingId = parseNumber(payload.booking_id ?? payload.bookingId ?? data?.bookingId);
+  const userId = parseNumber(payload.user_id);
+  const tickets = parseNumber(payload.tickets);
+  const bookingId = parseNumber(payload.booking_id);
 
   if (!userId || !tickets) {
     logger.warn(`[Kafka] ${eventType} event missing user_id or tickets.`);

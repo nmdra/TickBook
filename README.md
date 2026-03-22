@@ -88,8 +88,8 @@ containing an `event_type` plus the related data, while consumers react to those
 
 | event_type | Payload fields | Consumer behavior |
 |------------|----------------|-------------------|
-| `booking.created` | `event_type`, `booking_id`, `user_id`, `event_id`, `tickets`, `amount`, `status` | Payment Service creates or updates a pending payment. |
-| `booking.cancelled` | `event_type`, `booking_id`, `user_id`, `event_id`, `tickets`, `amount`, `status` | Payment Service marks the latest payment as failed when it is not completed or refunded. |
+| `booking.created` | `event_type`, `booking_id`, `user_id`, `event_id`, `tickets`, `amount`, `status` | Payment Service creates or updates a pending payment. User Service increments the user's ticket count. |
+| `booking.cancelled` | `event_type`, `booking_id`, `user_id`, `event_id`, `tickets`, `amount`, `status` | Payment Service marks the latest payment as failed when it is not completed or refunded. User Service decrements the user's ticket count. |
 
 #### Topic: `events`
 
