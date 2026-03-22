@@ -40,6 +40,20 @@ TickBook is a full-stack ticket booking platform composed of four independently 
 | **Containerization** | Docker, Docker Compose |
 | **CI/CD** | GitHub Actions, GHCR (optional ACR push) |
 
+### What each technology is used for
+
+| Technology | Purpose in this repo |
+|------------|----------------------|
+| **Node.js 20 + Express.js** | Powers the Event, User, and Payment microservices and exposes REST APIs. |
+| **Go 1.22 + gorilla/mux** | Powers the Booking microservice with fast, concurrent request handling. |
+| **PostgreSQL 17** | Primary relational data store for events, users, bookings, and payments (one DB per service). |
+| **Redis 7** | Caches event data in the Event Service to improve read performance. |
+| **Apache Kafka (KRaft mode)** | Asynchronous event streaming between services (e.g., booking/payment workflows). |
+| **JWT + bcryptjs** | User authentication and password hashing in the User Service. |
+| **Swagger / OpenAPI** | API documentation and interactive endpoint exploration for each service. |
+| **Docker + Docker Compose** | Containerized local development and consistent runtime setup for all services. |
+| **GitHub Actions + GHCR** | CI/CD automation for build/lint/security checks and container image publishing. |
+
 ## Architecture
 
 TickBook consists of four microservices that communicate via **REST** (synchronous) and **Apache Kafka** (asynchronous event streaming).
