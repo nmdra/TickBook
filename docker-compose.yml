@@ -22,6 +22,11 @@ services:
       - "5433:5432"
     volumes:
       - pg_event_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d eventdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     <<: *default-network
 
   postgres-user:
@@ -33,6 +38,11 @@ services:
       - "5434:5432"
     volumes:
       - pg_user_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d userdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     <<: *default-network
 
   postgres-booking:
@@ -44,6 +54,11 @@ services:
       - "5435:5432"
     volumes:
       - pg_booking_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d bookingdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     <<: *default-network
 
   postgres-payment:
@@ -55,12 +70,22 @@ services:
       - "5436:5432"
     volumes:
       - pg_payment_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d paymentdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     <<: *default-network
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     <<: *default-network
 
   kafka:
@@ -83,6 +108,11 @@ services:
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     volumes:
       - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "kafka:29092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     <<: *default-network
 
   event-service:
@@ -97,9 +127,12 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
     depends_on:
-      - postgres-event
-      - redis
-      - kafka
+      postgres-event:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     <<: *default-network
 
   user-service:
@@ -120,8 +153,10 @@ services:
       BOOKING_SERVICE_URL: http://booking-service:3003
       PAYMENT_SERVICE_URL: http://payment-service:3004
     depends_on:
-      - postgres-user
-      - kafka
+      postgres-user:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     <<: *default-network
 
   booking-service:
@@ -136,10 +171,14 @@ services:
       EVENT_SERVICE_URL: http://event-service:3001
       USER_SERVICE_URL: http://user-service:3002
     depends_on:
-      - postgres-booking
-      - kafka
-      - event-service
-      - user-service
+      postgres-booking:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      event-service:
+        condition: service_started
+      user-service:
+        condition: service_started
     <<: *default-network
 
   payment-service:
@@ -158,9 +197,12 @@ services:
       STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL:-http://localhost:3004/api/payments/stripe/success}
       STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL:-http://localhost:3004/api/payments/stripe/cancel}
     depends_on:
-      - postgres-payment
-      - kafka
-      - booking-service
+      postgres-payment:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      booking-service:
+        condition: service_started
     <<: *default-network
 
   nginx-gateway:
@@ -176,10 +218,14 @@ services:
       BOOKING_SERVICE_URL: http://booking-service:3003
       PAYMENT_SERVICE_URL: http://payment-service:3004
     depends_on:
-      - event-service
-      - user-service
-      - booking-service
-      - payment-service
+      event-service:
+        condition: service_started
+      user-service:
+        condition: service_started
+      booking-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
     <<: *default-network
 
 volumes:
