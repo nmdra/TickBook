@@ -93,9 +93,9 @@ func handlePaymentEvent(message []byte) error {
 
 	switch eventType {
 	case "payment.completed":
-		return confirmBookingUnlessCancelled(event.BookingID)
+		return confirmBookingIfNotCancelled(event.BookingID)
 	case "payment.failed":
-		return cancelBookingUnlessConfirmed(event.BookingID)
+		return cancelBookingIfNotConfirmed(event.BookingID)
 	case "payment.refunded":
 		return cancelBooking(event.BookingID)
 	default:
@@ -104,7 +104,7 @@ func handlePaymentEvent(message []byte) error {
 	}
 }
 
-func confirmBookingUnlessCancelled(bookingID int) error {
+func confirmBookingIfNotCancelled(bookingID int) error {
 	return updateBookingStatusUnlessCurrentStatus(
 		bookingID,
 		bookingStatusConfirmed,
@@ -112,7 +112,7 @@ func confirmBookingUnlessCancelled(bookingID int) error {
 	)
 }
 
-func cancelBookingUnlessConfirmed(bookingID int) error {
+func cancelBookingIfNotConfirmed(bookingID int) error {
 	return updateBookingStatusUnlessCurrentStatus(
 		bookingID,
 		bookingStatusCancelled,
@@ -160,7 +160,7 @@ func updateBookingStatusUnlessCurrentStatus(
 		if statusErr != nil {
 			return statusErr
 		}
-		log.Printf("Skipped booking %d update because status is %s", bookingID, currentStatus)
+		log.Printf("Status guard prevented updating booking %d because status is %s", bookingID, currentStatus)
 	}
 
 	return nil
