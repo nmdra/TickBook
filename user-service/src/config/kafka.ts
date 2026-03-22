@@ -9,7 +9,7 @@ const kafka = new Kafka({
 
 const consumer = kafka.consumer({ groupId: 'user-service-group' });
 const reconnectIntervalMs = parseInt(process.env.KAFKA_RECONNECT_INTERVAL_MS || '', 10) || 15000;
-const userRepository = new UserRepository();
+let userRepository: UserRepository | null = null;
 
 let isConnecting = false;
 let isRunning = false;
@@ -55,6 +55,14 @@ const parseNumber = (value: unknown): number | null => {
   return null;
 };
 
+const getUserRepository = (): UserRepository => {
+  if (!userRepository) {
+    userRepository = new UserRepository();
+  }
+
+  return userRepository;
+};
+
 const processBookingEvent = async (rawValue: string): Promise<void> => {
   if (!rawValue) {
     return;
@@ -95,7 +103,7 @@ const processBookingEvent = async (rawValue: string): Promise<void> => {
 
   const normalizedTickets = Math.abs(tickets);
   const delta = eventType === 'booking.cancelled' ? -normalizedTickets : normalizedTickets;
-  const updated = await userRepository.adjustTicketsBooked(userId, delta);
+  const updated = await getUserRepository().adjustTicketsBooked(userId, delta);
 
   if (!updated) {
     logger.error(`[Kafka] ${eventType} event for unknown user ${userId}.`);

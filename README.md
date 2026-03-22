@@ -84,11 +84,12 @@ containing an `event_type` plus the related data, while consumers react to those
 - **Consumers:**
   - Payment Service (`payment-service` group, `fromBeginning: true`)
   - User Service (`user-service-group`, `fromBeginning: false`, adjusts user ticket counts based on booking events)
+- **Schema:** Booking events are emitted with snake_case fields such as `event_type`, `booking_id`, `user_id`, `event_id`, `tickets`, `amount`, and `status`.
 
 | event_type | Payload fields | Consumer behavior |
 |------------|----------------|-------------------|
 | `booking.created` | `event_type`, `booking_id`, `user_id`, `event_id`, `tickets`, `amount`, `status` | Payment Service creates or updates a pending payment. |
-| `booking.cancelled` | `event_type`, `booking_id`, `user_id`, `event_id`, `tickets`, `amount`, `status` | Payment Service marks payments as failed when they are not completed/refunded. |
+| `booking.cancelled` | `event_type`, `booking_id`, `user_id`, `event_id`, `tickets`, `amount`, `status` | Payment Service marks the latest payment as failed when it is not completed or refunded. |
 
 #### Topic: `events`
 
