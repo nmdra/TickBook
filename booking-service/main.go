@@ -23,6 +23,7 @@ func main() {
 
 	database.Connect(cfg)
 	kafka.InitProducer(cfg.KafkaBrokers)
+	kafka.StartPaymentConsumer(cfg.KafkaBrokers, cfg.KafkaPaymentsGroup, cfg.KafkaPaymentsTopic)
 
 	handlers.EventServiceURL = cfg.EventServiceURL
 	handlers.UserServiceURL = cfg.UserServiceURL
@@ -68,6 +69,7 @@ func main() {
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 		<-sigChan
 		log.Println("Shutting down...")
+		kafka.StopPaymentConsumer()
 		kafka.Close()
 		os.Exit(0)
 	}()

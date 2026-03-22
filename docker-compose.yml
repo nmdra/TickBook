@@ -168,6 +168,8 @@ services:
       PORT: 3003
       DB_HOST: postgres-booking
       DB_NAME: bookingdb
+      KAFKA_PAYMENTS_TOPIC: payments
+      KAFKA_PAYMENTS_GROUP: booking-service
       EVENT_SERVICE_URL: http://event-service:3001
       USER_SERVICE_URL: http://user-service:3002
     depends_on:
@@ -190,6 +192,8 @@ services:
       PORT: 3004
       DB_HOST: postgres-payment
       DB_NAME: paymentdb
+      KAFKA_RECONNECT_INTERVAL_MS: 15000
+      KAFKA_PAYMENTS_TOPIC: payments
       BOOKING_SERVICE_URL: http://booking-service:3003
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}

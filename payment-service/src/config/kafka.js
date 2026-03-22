@@ -10,13 +10,18 @@ const kafka = new Kafka({
   brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
 });
 
+const paymentsTopic = process.env.KAFKA_PAYMENTS_TOPIC || 'payments';
+
 const consumer = kafka.consumer({ groupId: 'payment-service' });
+const producer = kafka.producer();
 const reconnectIntervalMs = parseInt(process.env.KAFKA_RECONNECT_INTERVAL_MS, 10) || 15000;
 
 let isConnecting = false;
 let isRunning = false;
 let isShuttingDown = false;
 let reconnectTimer = null;
+let isProducerConnecting = false;
+let isProducerConnected = false;
 
 const clearReconnectTimer = () => {
   if (reconnectTimer) {
@@ -77,9 +82,12 @@ const processBookingEvent = async (message) => {
 
     const payment = await getLatestPaymentByBookingId(bookingId);
     if (payment && !['completed', 'refunded'].includes(payment.status)) {
-      await updatePaymentStatusByBookingId(bookingId, 'failed', {
+      const updatedPayment = await updatePaymentStatusByBookingId(bookingId, 'failed', {
         failureReason: 'Booking was cancelled before payment completed',
       });
+      if (updatedPayment) {
+        await publishPaymentEvent('payment.failed', updatedPayment);
+      }
     }
 
     console.log(`Processed booking.cancelled event for booking ${bookingId}`);
@@ -155,4 +163,90 @@ const disconnectConsumer = async () => {
   }
 };
 
-module.exports = { connectConsumer, disconnectConsumer };
+const connectProducer = async () => {
+  if (isShuttingDown || isProducerConnecting || isProducerConnected) {
+    return;
+  }
+
+  isProducerConnecting = true;
+
+  try {
+    await producer.connect();
+    isProducerConnected = true;
+    console.log(`Kafka producer connected for "${paymentsTopic}" topic`);
+  } catch (err) {
+    console.warn('Kafka producer connection failed (non-fatal):', err.message);
+  } finally {
+    isProducerConnecting = false;
+  }
+};
+
+const disconnectProducer = async () => {
+  isProducerConnected = false;
+
+  try {
+    await producer.disconnect();
+  } catch (err) {
+    console.warn('Kafka producer disconnect error:', err.message);
+  }
+};
+
+const publishPaymentEvent = async (eventType, payment) => {
+  if (!eventType || !payment || isShuttingDown) {
+    return;
+  }
+
+  if (!isProducerConnected) {
+    await connectProducer();
+  }
+
+  if (!isProducerConnected) {
+    console.warn('Kafka producer unavailable. Skipping payment event publish.');
+    return;
+  }
+
+  const parsedAmount = Number(payment.amount);
+  const amountValue = Number.isFinite(parsedAmount) ? parsedAmount : payment.amount;
+  if (!Number.isFinite(parsedAmount)) {
+    console.warn(
+      `Payment amount is non-numeric for booking ${payment.booking_id}; publishing raw value: ${payment.amount}`
+    );
+  }
+  const payload = {
+    event_type: eventType,
+    payment_id: payment.id,
+    booking_id: payment.booking_id,
+    user_id: payment.user_id,
+    amount: amountValue,
+    currency: payment.currency,
+    status: payment.status,
+    payment_method: payment.payment_method,
+    failure_reason: payment.failure_reason,
+    paid_at: payment.paid_at,
+    created_at: payment.created_at,
+    updated_at: payment.updated_at,
+  };
+
+  try {
+    await producer.send({
+      topic: paymentsTopic,
+      messages: [
+        {
+          key: eventType,
+          value: JSON.stringify(payload),
+        },
+      ],
+    });
+    console.log(`Published ${eventType} payment event for booking ${payment.booking_id}`);
+  } catch (err) {
+    console.warn('Failed to publish payment event:', err.message);
+  }
+};
+
+module.exports = {
+  connectConsumer,
+  disconnectConsumer,
+  connectProducer,
+  disconnectProducer,
+  publishPaymentEvent,
+};
