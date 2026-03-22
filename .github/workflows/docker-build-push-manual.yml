@@ -5,29 +5,15 @@ on:
 
 jobs:
   detect-changes:
-    name: Detect Changed Services
+    name: Select Services
     runs-on: ubuntu-latest
     outputs:
-      services: ${{ steps.filter.outputs.changes }}
+      services: ${{ steps.set-services.outputs.services }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Filter changed paths
-        uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            event-service:
-              - 'event-service/**'
-            user-service:
-              - 'user-service/**'
-            booking-service:
-              - 'booking-service/**'
-            payment-service:
-              - 'payment-service/**'
-            nginx-gateway:
-              - 'nginx/**'
+      - name: Set services list
+        id: set-services
+        run: |
+          echo 'services=["event-service","user-service","booking-service","payment-service","nginx-gateway"]' >> $GITHUB_OUTPUT
 
   build-scan-push:
     name: Build & Scan - ${{ matrix.service }}
@@ -81,7 +67,7 @@ jobs:
           echo "sha_tag=sha-$(echo '${{ github.sha }}' | cut -c1-7)" >> $GITHUB_OUTPUT
           echo "repo=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
           
-          echo "tag=latest" >> $GITHUB_OUTPUT
+          echo "tag=manual-${{ github.run_id }}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
