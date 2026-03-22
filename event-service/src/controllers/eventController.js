@@ -154,7 +154,7 @@ const createEvent = async (req, res) => {
     res.status(201).json(event);
   } catch (err) {
     logger.error('Error creating event:', err.message);
-    res.status(500).json({ error: 'Internal server error:' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
