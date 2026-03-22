@@ -1,9 +1,15 @@
 FROM maven:3.9-eclipse-temurin-21-alpine AS builder
 WORKDIR /app
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
+RUN mvn dependency:go-offline -B -ntp \
+	-Dmaven.wagon.http.retryHandler.count=6 \
+	-Dmaven.wagon.http.retryHandler.requestSentEnabled=true \
+	-Dmaven.wagon.http.pool=false
 COPY src ./src
-RUN mvn package -DskipTests -B
+RUN mvn package -DskipTests -B -ntp \
+	-Dmaven.wagon.http.retryHandler.count=6 \
+	-Dmaven.wagon.http.retryHandler.requestSentEnabled=true \
+	-Dmaven.wagon.http.pool=false
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app

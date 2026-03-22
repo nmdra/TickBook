@@ -38,6 +38,46 @@ const getAllEvents = async (req, res) => {
   }
 };
 
+const getEventsByUserId = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const parsedUserId = parseInt(userId, 10);
+
+    if (Number.isNaN(parsedUserId) || parsedUserId <= 0) {
+      return res.status(400).json({ error: 'userId must be a positive integer' });
+    }
+
+    const redis = getRedis();
+    const cacheKey = `events:user:${parsedUserId}`;
+
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          return res.json(JSON.parse(cached));
+        }
+      } catch (err) {
+        logger.warn('Redis read error:', err.message);
+      }
+    }
+
+    const result = await pool.query('SELECT * FROM events WHERE user_id = $1 ORDER BY date ASC', [parsedUserId]);
+
+    if (redis) {
+      try {
+        await redis.set(cacheKey, JSON.stringify(result.rows), 'EX', CACHE_TTL);
+      } catch (err) {
+        logger.warn('Redis write error:', err.message);
+      }
+    }
+
+    res.json(result.rows);
+  } catch (err) {
+    logger.error('Error fetching events by userId:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 const getEventById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -77,7 +117,7 @@ const getEventById = async (req, res) => {
 
 const createEvent = async (req, res) => {
   try {
-    const { title, description, venue, date, total_tickets, price } = req.body;
+    const { title, description, venue, date, total_tickets, price, user_id } = req.body;
 
     // Validate input
     const validation = validateEventCreate(req.body);
@@ -89,9 +129,9 @@ const createEvent = async (req, res) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO events (title, description, venue, date, total_tickets, available_tickets, price)
-       VALUES ($1, $2, $3, $4, $5, $5, $6) RETURNING *`,
-      [title, description || null, venue || null, date, total_tickets, price]
+      `INSERT INTO events (title, description, venue, date, total_tickets, available_tickets, price, user_id)
+       VALUES ($1, $2, $3, $4, $5, $5, $6, $7) RETURNING *`,
+      [title, description || null, venue || null, date, total_tickets, price, user_id || null]
     );
 
     const event = result.rows[0];
@@ -101,6 +141,9 @@ const createEvent = async (req, res) => {
     if (redis) {
       try {
         await redis.del('events:all');
+        if (event.user_id) {
+          await redis.del(`events:user:${event.user_id}`);
+        }
       } catch (err) {
         logger.warn('Redis invalidation error:', err.message);
       }
@@ -118,7 +161,7 @@ const createEvent = async (req, res) => {
 const updateEvent = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, venue, date, total_tickets, available_tickets, price } = req.body;
+    const { title, description, venue, date, total_tickets, available_tickets, price, user_id } = req.body;
 
     const existing = await pool.query('SELECT * FROM events WHERE id = $1', [id]);
     if (existing.rows.length === 0) {
@@ -128,6 +171,7 @@ const updateEvent = async (req, res) => {
     const newTotalTickets = total_tickets !== undefined ? total_tickets : existing.rows[0].total_tickets;
     const newAvailableTickets = available_tickets !== undefined ? available_tickets : existing.rows[0].available_tickets;
     const newPrice = price !== undefined ? price : existing.rows[0].price;
+    const newUserId = user_id !== undefined ? user_id : existing.rows[0].user_id;
 
     if (newTotalTickets <= 0 || newPrice <= 0) {
       return res.status(400).json({ error: 'total_tickets and price must be positive numbers' });
@@ -143,8 +187,8 @@ const updateEvent = async (req, res) => {
 
     const result = await pool.query(
       `UPDATE events SET title = $1, description = $2, venue = $3, date = $4,
-       total_tickets = $5, available_tickets = $6, price = $7, updated_at = NOW()
-       WHERE id = $8 RETURNING *`,
+       total_tickets = $5, available_tickets = $6, price = $7, user_id = $8, updated_at = NOW()
+       WHERE id = $9 RETURNING *`,
       [
         title !== undefined ? title : existing.rows[0].title,
         description !== undefined ? description : existing.rows[0].description,
@@ -153,6 +197,7 @@ const updateEvent = async (req, res) => {
         newTotalTickets,
         newAvailableTickets,
         newPrice,
+        newUserId,
         id,
       ]
     );
@@ -163,6 +208,12 @@ const updateEvent = async (req, res) => {
     if (redis) {
       try {
         await redis.del('events:all', `events:${id}`);
+        if (existing.rows[0].user_id) {
+          await redis.del(`events:user:${existing.rows[0].user_id}`);
+        }
+        if (event.user_id) {
+          await redis.del(`events:user:${event.user_id}`);
+        }
       } catch (err) {
         logger.warn('Redis invalidation error:', err.message);
       }
@@ -191,6 +242,9 @@ const deleteEvent = async (req, res) => {
     if (redis) {
       try {
         await redis.del('events:all', `events:${id}`);
+        if (result.rows[0].user_id) {
+          await redis.del(`events:user:${result.rows[0].user_id}`);
+        }
       } catch (err) {
         logger.warn('Redis invalidation error:', err.message);
       }
@@ -235,6 +289,7 @@ const checkAvailability = async (req, res) => {
 
 module.exports = {
   getAllEvents,
+  getEventsByUserId,
   getEventById,
   createEvent,
   updateEvent,

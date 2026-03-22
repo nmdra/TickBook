@@ -58,11 +58,18 @@ const validateEventCreate = (data) => {
     errors.push('Description cannot exceed 1000 characters');
   }
 
-    // Optional: Venue validation
+  // Optional: Venue validation
   if (data.venue && typeof data.venue !== 'string') {
     errors.push('Venue must be a string');
   } else if (data.venue && data.venue.length > 255) {
     errors.push('Venue cannot exceed 255 characters');
+  }
+
+  // Optional: user_id validation
+  if (data.user_id !== undefined && data.user_id !== null) {
+    if (!Number.isInteger(data.user_id) || data.user_id <= 0) {
+      errors.push('user_id must be a positive integer');
+    }
   }
 
   return {
