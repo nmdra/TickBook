@@ -147,7 +147,11 @@ func updateBookingStatusUnlessCurrentStatus(
 	}
 
 	affected, err := result.RowsAffected()
-	if err == nil && affected == 0 {
+	if err != nil {
+		return err
+	}
+
+	if affected == 0 {
 		var currentStatus string
 		statusErr := database.DB.QueryRow(
 			"SELECT status FROM bookings WHERE id = $1",
