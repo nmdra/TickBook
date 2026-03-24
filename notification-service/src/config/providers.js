@@ -35,7 +35,7 @@ const sendEmail = async ({ to, subject, text, html }) => {
   });
 
   if (response?.error) {
-    throw new Error(`Resend send failed: ${response.error.message || 'unknown error'}`);
+    throw new Error(`Failed to send email via Resend: ${response.error.message || 'unknown error'}`);
   }
 };
 
