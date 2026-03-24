@@ -24,6 +24,8 @@ var (
 	SeatLockManager *lock.LockManager
 )
 
+const seatLockRequestTimeout = 6 * time.Second
+
 func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -127,7 +129,7 @@ func CreateBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lockCtx, cancelLock := context.WithTimeout(r.Context(), 6*time.Second)
+	lockCtx, cancelLock := context.WithTimeout(r.Context(), seatLockRequestTimeout)
 	defer cancelLock()
 	if _, err := SeatLockManager.RequestLock(lockCtx, req.UserID, req.EventID, req.SeatID, req.SessionToken); err != nil {
 		respondError(w, http.StatusConflict, err.Error())

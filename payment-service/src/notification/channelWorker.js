@@ -22,6 +22,8 @@ const CHANNEL_DLQ_TOPICS = {
 };
 
 const CRITICAL_EVENTS = new Set(['payment.failed', 'waitlist.offer.sent']);
+const providerSendDelayMs = Number.parseInt(process.env.NOTIF_PROVIDER_SEND_DELAY_MS, 10) || 10;
+const providerTimeoutMs = Number.parseInt(process.env.NOTIF_PROVIDER_TIMEOUT_MS, 10) || 10_000;
 
 const deliveryLog = new Map();
 
@@ -35,9 +37,13 @@ const setDeliveryLog = (idempotencyKey, value) => {
 const getDeliveryLog = (idempotencyKey) => deliveryLog.get(idempotencyKey);
 
 const sendToProvider = async (channel, payload) => {
+  const providerSend = async () => {
+    await delay(providerSendDelayMs);
+  };
+
   await Promise.race([
-    new Promise((resolve) => setTimeout(resolve, 10)),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('provider timeout')), 10_000)),
+    providerSend(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('provider timeout')), providerTimeoutMs)),
   ]);
   console.log(
     `Notification sent via ${channel} for user ${payload.userId}, event ${payload.eventType}, key ${payload.idempotencyKey}`
@@ -51,9 +57,9 @@ const delay = (ms) =>
 
 const trySendWithRetry = async (channel, payload) => {
   const retries = RETRY_POLICIES[channel] || [];
-  const attempts = retries.length;
+  const totalAttempts = retries.length + 1;
 
-  for (let index = 0; index < attempts; index += 1) {
+  for (let index = 0; index < totalAttempts; index += 1) {
     try {
       await sendToProvider(channel, payload);
       setDeliveryLog(payload.idempotencyKey, {
@@ -69,7 +75,7 @@ const trySendWithRetry = async (channel, payload) => {
         attempts: index + 1,
         errors: err.message,
       });
-      if (index < retries.length - 1) {
+      if (index < retries.length) {
         await delay(retries[index]);
       }
     }
@@ -77,7 +83,7 @@ const trySendWithRetry = async (channel, payload) => {
 
   setDeliveryLog(payload.idempotencyKey, {
     status: 'failed',
-    attempts,
+    attempts: totalAttempts,
     errors: 'retry exhausted',
   });
   return false;
@@ -122,7 +128,7 @@ const startChannelWorker = async (channel) => {
   }
 
   const kafka = new Kafka({
-    clientId: `notification-${channel}-worker`,
+    clientId: `notification-${channel}-worker-${process.env.HOSTNAME || 'local'}`,
     brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
   });
 
@@ -134,35 +140,47 @@ const startChannelWorker = async (channel) => {
   await consumer.subscribe({ topic: CHANNEL_TOPICS[channel], fromBeginning: false });
 
   await consumer.run({
-    eachMessage: async ({ message }) => {
+    autoCommit: false,
+    eachMessage: async ({ topic, partition, message }) => {
       const payload = JSON.parse(message.value.toString());
-      const existing = getDeliveryLog(payload.idempotencyKey);
-      if (existing?.status === 'delivered') {
-        return;
-      }
+      try {
+        const existing = getDeliveryLog(payload.idempotencyKey);
+        if (!existing || existing.status !== 'delivered') {
+          const delivered = await trySendWithRetry(channel, payload);
+          if (!delivered) {
+            await publishToDLQ(producer, channel, payload, 'max retries exhausted');
+            const fallback = fallbackChannel(payload.eventType, channel);
+            if (fallback) {
+              await producer.send({
+                topic: CHANNEL_TOPICS[fallback],
+                messages: [
+                  {
+                    key: String(payload.userId),
+                    value: JSON.stringify({
+                      ...payload,
+                      channel: fallback,
+                      idempotencyKey: `${payload.userId}:${payload.eventType}:${payload.eventId}:${fallback}`,
+                      fallbackFrom: channel,
+                    }),
+                  },
+                ],
+              });
+            }
+          }
+        }
 
-      const delivered = await trySendWithRetry(channel, payload);
-      if (delivered) {
-        return;
-      }
-
-      await publishToDLQ(producer, channel, payload, 'max retries exhausted');
-      const fallback = fallbackChannel(payload.eventType, channel);
-      if (fallback) {
-        await producer.send({
-          topic: CHANNEL_TOPICS[fallback],
-          messages: [
-            {
-              key: String(payload.userId),
-              value: JSON.stringify({
-                ...payload,
-                channel: fallback,
-                idempotencyKey: `${payload.userId}:${payload.eventType}:${payload.eventId}:${fallback}`,
-                fallbackFrom: channel,
-              }),
-            },
-          ],
-        });
+        await consumer.commitOffsets([
+          {
+            topic,
+            partition,
+            offset: String(Number(message.offset) + 1),
+          },
+        ]);
+      } catch (err) {
+        console.warn(
+          `Notification ${channel} worker failed for key ${payload.idempotencyKey || 'unknown'}:`,
+          err.message
+        );
       }
     },
   });

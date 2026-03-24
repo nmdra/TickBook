@@ -33,7 +33,13 @@ const (
 	lockEventTypeLocked       = "seat.locked"
 	lockEventTypeFailed       = "seat.lock.failed"
 	lockEventTypeExpired      = "seat.lock.expired"
-	lockScript                = `if redis.call("GET", KEYS[1]) then return 0 else return redis.call("SET", KEYS[1], ARGV[1], "EX", ARGV[2], "NX") and 1 or 0 end`
+	lockScript                = `
+if redis.call("GET", KEYS[1]) then
+	return 0
+else
+	return redis.call("SET", KEYS[1], ARGV[1], "EX", ARGV[2], "NX") and 1 or 0
+end
+`
 )
 
 type lockState struct {
@@ -150,7 +156,10 @@ func (m *LockManager) RequestLock(
 	}
 
 	if err := m.publishJSON(ctx, DefaultRequestTopic, strconvEventID(eventID), event); err != nil {
-		return "", err
+		return "", fmt.Errorf(
+			"failed to request seat reservation. please try again: %w",
+			err,
+		)
 	}
 
 	return idempotencyKey, m.waitForOutcome(idempotencyKey)
@@ -230,9 +239,11 @@ func (m *LockManager) processLockRequest(ctx context.Context, event models.SeatL
 	if err == nil {
 		var priorLock lockState
 		if jsonErr := json.Unmarshal([]byte(cachedLockJSON), &priorLock); jsonErr == nil {
-			m.publishLocked(ctx, priorLock)
-			m.setOutcome(event.IdempotencyKey, "")
-			return
+			if _, lockErr := m.redisClient.Get(ctx, buildSeatLockKey(priorLock.EventID, priorLock.SeatID)).Result(); lockErr == nil {
+				m.publishLocked(ctx, priorLock)
+				m.setOutcome(event.IdempotencyKey, "")
+				return
+			}
 		}
 	}
 	if err != nil && err != redis.Nil {
@@ -279,7 +290,12 @@ func (m *LockManager) processLockRequest(ctx context.Context, event models.SeatL
 		string(stateJSON),
 		ttlSeconds,
 	).Int()
-	if casErr != nil || acquired != 1 {
+	if casErr != nil {
+		m.publishLockFailed(ctx, event, reasonInvalidRequest)
+		m.setOutcome(event.IdempotencyKey, reasonInvalidRequest)
+		return
+	}
+	if acquired != 1 {
 		m.publishLockFailed(ctx, event, reasonAlreadyLocked)
 		m.setOutcome(event.IdempotencyKey, reasonAlreadyLocked)
 		return
@@ -313,48 +329,55 @@ func (m *LockManager) startTTLWatcher(ctx context.Context) {
 }
 
 func (m *LockManager) scanExpiringLocks(ctx context.Context) {
-	keys, err := m.redisClient.Keys(ctx, seatLockKeyPrefix+":*").Result()
-	if err != nil {
-		return
-	}
-
+	var cursor uint64
 	now := time.Now().UTC()
-	for _, key := range keys {
-		ttl, err := m.redisClient.TTL(ctx, key).Result()
-		if err != nil || ttl <= 0 || ttl > DefaultTTLWatcherInterval {
-			continue
+	for {
+		keys, nextCursor, err := m.redisClient.Scan(ctx, cursor, seatLockKeyPrefix+":*", 100).Result()
+		if err != nil {
+			return
+		}
+		for _, key := range keys {
+			ttl, err := m.redisClient.TTL(ctx, key).Result()
+			if err != nil || ttl <= 0 || ttl > DefaultTTLWatcherInterval {
+				continue
+			}
+
+			raw, getErr := m.redisClient.Get(ctx, key).Result()
+			if getErr != nil {
+				continue
+			}
+
+			var state lockState
+			if err := json.Unmarshal([]byte(raw), &state); err != nil {
+				continue
+			}
+			if state.LockExpiresAt.After(now.Add(DefaultTTLWatcherInterval)) {
+				continue
+			}
+
+			expiryNoticeKey := fmt.Sprintf("%s:expiry.notice:%s", seatLockKeyPrefix, state.IdempotencyKey)
+			set, err := m.redisClient.SetNX(ctx, expiryNoticeKey, "1", 2*time.Minute).Result()
+			if err != nil || !set {
+				continue
+			}
+
+			expired := models.SeatLockExpiredEvent{
+				EventType:      lockEventTypeExpired,
+				UserID:         state.UserID,
+				SeatID:         state.SeatID,
+				EventID:        state.EventID,
+				SessionToken:   state.SessionToken,
+				IdempotencyKey: state.IdempotencyKey,
+				LockExpiresAt:  state.LockExpiresAt,
+				ExpiredAt:      state.LockExpiresAt,
+			}
+			_ = m.publishJSON(ctx, DefaultLockExpiredTopic, strconvEventID(state.EventID), expired)
 		}
 
-		raw, getErr := m.redisClient.Get(ctx, key).Result()
-		if getErr != nil {
-			continue
+		cursor = nextCursor
+		if cursor == 0 {
+			return
 		}
-
-		var state lockState
-		if err := json.Unmarshal([]byte(raw), &state); err != nil {
-			continue
-		}
-		if state.LockExpiresAt.After(now.Add(DefaultTTLWatcherInterval)) {
-			continue
-		}
-
-		expiryNoticeKey := fmt.Sprintf("%s:expiry.notice:%s", seatLockKeyPrefix, state.IdempotencyKey)
-		set, err := m.redisClient.SetNX(ctx, expiryNoticeKey, "1", 2*time.Minute).Result()
-		if err != nil || !set {
-			continue
-		}
-
-		expired := models.SeatLockExpiredEvent{
-			EventType:      lockEventTypeExpired,
-			UserID:         state.UserID,
-			SeatID:         state.SeatID,
-			EventID:        state.EventID,
-			SessionToken:   state.SessionToken,
-			IdempotencyKey: state.IdempotencyKey,
-			LockExpiresAt:  state.LockExpiresAt,
-			ExpiredAt:      state.LockExpiresAt,
-		}
-		_ = m.publishJSON(ctx, DefaultLockExpiredTopic, strconvEventID(state.EventID), expired)
 	}
 }
 

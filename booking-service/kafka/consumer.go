@@ -22,6 +22,7 @@ const (
 	bookingStatusConfirmed  = "confirmed"
 	bookingStatusCancelled  = "cancelled"
 	noStatusGuard           = ""
+	bookingEventConfirmed   = "booking.confirmed"
 )
 
 var paymentReader *kafkago.Reader
@@ -118,9 +119,10 @@ func confirmBookingIfNotCancelled(bookingID int) error {
 		return err
 	}
 	if bookingEvent == nil {
+		log.Printf("Booking %d not found while publishing %s event", bookingID, bookingEventConfirmed)
 		return nil
 	}
-	bookingEvent.EventType = "booking.confirmed"
+	bookingEvent.EventType = bookingEventConfirmed
 	return Publish(fmt.Sprintf("%d", bookingEvent.EventID), bookingEvent)
 }
 

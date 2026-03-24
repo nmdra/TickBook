@@ -130,27 +130,71 @@ const getEventIdForNotification = (payload) =>
   payload.booking_id || payload.bookingId || payload.event_id || payload.eventId || payload.id;
 
 const startNotificationRouter = async () => {
-  const kafka = new Kafka({
-    clientId: 'notification-router',
-    brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
-  });
+  try {
+    let isPaused = false;
+    const kafka = new Kafka({
+      clientId: process.env.NOTIF_ROUTER_CLIENT_ID || 'notification-router',
+      brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
+    });
 
-  const consumer = kafka.consumer({ groupId: process.env.NOTIF_ROUTER_GROUP || 'notification-router' });
-  const producer = kafka.producer();
+    const consumer = kafka.consumer({ groupId: process.env.NOTIF_ROUTER_GROUP || 'notification-router' });
+    const producer = kafka.producer();
 
-  await consumer.connect();
-  await producer.connect();
+    await consumer.connect();
+    await producer.connect();
 
-  for (const topic of DOMAIN_TOPICS) {
-    await consumer.subscribe({ topic, fromBeginning: false });
-  }
+    for (const topic of DOMAIN_TOPICS) {
+      await consumer.subscribe({ topic, fromBeginning: false });
+    }
 
-  await consumer.run({
-    autoCommit: false,
-    eachMessage: async ({ topic, partition, message, heartbeat, pause }) => {
-      try {
-        const { eventType, payload } = extractDomainEvent(message);
-        if (shouldSkipEvent(eventType, payload)) {
+    await consumer.run({
+      autoCommit: false,
+      eachMessage: async ({ topic, partition, message, heartbeat, pause }) => {
+        try {
+          const { eventType, payload } = extractDomainEvent(message);
+          if (shouldSkipEvent(eventType, payload)) {
+            await consumer.commitOffsets([
+              {
+                topic,
+                partition,
+                offset: String(Number(message.offset) + 1),
+              },
+            ]);
+            return;
+          }
+
+          const userId = payload.user_id || payload.userId;
+          const eventId = getEventIdForNotification(payload);
+          const preferences = resolveUserPreferences(userId);
+          const channels = activeChannelsForEvent(eventType, preferences, payload);
+          const locale = preferences.locale || 'en';
+
+          for (const channel of channels) {
+            const template = resolveTemplate(eventType, channel, locale);
+            if (!template) {
+              continue;
+            }
+
+            const notificationPayload = {
+              userId,
+              eventType,
+              eventId,
+              channel,
+              locale,
+              timezone: preferences.timezone || 'UTC',
+              idempotencyKey: buildIdempotencyKey(userId, eventType, eventId, channel),
+              templateId: template.id,
+              payload,
+              createdAt: new Date().toISOString(),
+            };
+
+            await producer.send({
+              topic: INTERNAL_TOPICS[channel],
+              messages: [{ key: String(userId), value: JSON.stringify(notificationPayload) }],
+            });
+            await heartbeat();
+          }
+
           await consumer.commitOffsets([
             {
               topic,
@@ -158,57 +202,33 @@ const startNotificationRouter = async () => {
               offset: String(Number(message.offset) + 1),
             },
           ]);
-          return;
-        }
-
-        const userId = payload.user_id || payload.userId;
-        const eventId = getEventIdForNotification(payload);
-        const preferences = resolveUserPreferences(userId);
-        const channels = activeChannelsForEvent(eventType, preferences, payload);
-        const locale = preferences.locale || 'en';
-
-        for (const channel of channels) {
-          const template = resolveTemplate(eventType, channel, locale);
-          if (!template) {
-            continue;
+        } catch (err) {
+          const parsedPayload = (() => {
+            try {
+              return JSON.parse(message.value.toString());
+            } catch (parseErr) {
+              return {};
+            }
+          })();
+          const failedEventType = parsedPayload.event_type || parsedPayload.eventType || 'unknown';
+          console.warn(
+            `Notification router failed to process event (topic=${topic}, eventType=${failedEventType}):`,
+            err.message
+          );
+          if (!isPaused) {
+            isPaused = true;
+            pause();
+            setTimeout(() => {
+              consumer.resume([{ topic }]);
+              isPaused = false;
+            }, 1000);
           }
-
-          const notificationPayload = {
-            userId,
-            eventType,
-            eventId,
-            channel,
-            locale,
-            timezone: preferences.timezone || 'UTC',
-            idempotencyKey: buildIdempotencyKey(userId, eventType, eventId, channel),
-            templateId: template.id,
-            payload,
-            createdAt: new Date().toISOString(),
-          };
-
-          await producer.send({
-            topic: INTERNAL_TOPICS[channel],
-            messages: [{ key: String(userId), value: JSON.stringify(notificationPayload) }],
-          });
-          await heartbeat();
         }
-
-        await consumer.commitOffsets([
-          {
-            topic,
-            partition,
-            offset: String(Number(message.offset) + 1),
-          },
-        ]);
-      } catch (err) {
-        console.warn('Notification router failed to process event:', err.message);
-        pause();
-        setTimeout(() => {
-          consumer.resume([{ topic }]);
-        }, 1000);
-      }
-    },
-  });
+      },
+    });
+  } catch (err) {
+    console.warn('Notification router startup failed:', err.message);
+  }
 };
 
 module.exports = {

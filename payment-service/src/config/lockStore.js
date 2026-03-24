@@ -1,6 +1,8 @@
 const Redis = require('ioredis');
 
 let redisClient = null;
+const parsedRedisPort = Number.parseInt(process.env.REDIS_PORT, 10);
+const redisPort = Number.isFinite(parsedRedisPort) ? parsedRedisPort : 6379;
 
 const getRedisClient = () => {
   if (redisClient) {
@@ -9,7 +11,7 @@ const getRedisClient = () => {
 
   redisClient = new Redis({
     host: process.env.REDIS_HOST || 'localhost',
-    port: Number.parseInt(process.env.REDIS_PORT, 10) || 6379,
+    port: redisPort,
     maxRetriesPerRequest: 3,
   });
 

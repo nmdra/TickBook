@@ -54,7 +54,4 @@ func createTable() {
 		log.Println("Bookings table ready")
 	}
 
-	if _, err := DB.Exec("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS seat_id VARCHAR(128)"); err != nil {
-		log.Printf("Warning: Could not ensure seat_id column: %v", err)
-	}
 }
