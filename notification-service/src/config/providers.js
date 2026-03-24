@@ -26,7 +26,7 @@ const sendEmail = async ({ to, subject, text, html }) => {
     throw new Error('Resend is not configured');
   }
 
-  const response = await client.emails.send({
+  const { error } = await client.emails.send({
     to,
     from: process.env.RESEND_FROM_EMAIL,
     subject,
@@ -34,8 +34,8 @@ const sendEmail = async ({ to, subject, text, html }) => {
     html,
   });
 
-  if (response?.error) {
-    throw new Error(`Failed to send email via Resend: ${response.error.message || 'unknown error'}`);
+  if (error) {
+    throw new Error(`Failed to send email via Resend: ${error.message || 'unknown error'}`);
   }
 };
 
