@@ -263,6 +263,23 @@ services:
         condition: service_started
     <<: *default-network
 
+  kafbat-ui:
+    container_name: kafbat-ui
+    image: kafbat/kafka-ui:latest
+    ports:
+      - "8081:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_READONLY: "false"
+      SWAGGER_UI_ENABLED: "true"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - microservices-net
+    restart: unless-stopped
+
 volumes:
   pg_event_data:
   pg_user_data:
