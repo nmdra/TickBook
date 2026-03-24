@@ -19,14 +19,14 @@ variable "BUILD_DATE" {
 }
 
 group "default" {
-  targets = ["event-service", "user-service", "booking-service", "payment-service", "nginx-gateway"]
+  targets = ["event-service", "user-service", "booking-service", "payment-service", "notification-service", "nginx-gateway"]
 }
 
 target "services" {
   name = "${service}"
   
   matrix = {
-    service = ["event-service", "user-service", "booking-service", "payment-service"]
+    service = ["event-service", "user-service", "booking-service", "payment-service", "notification-service"]
   }
   
   context    = "./${service}"

@@ -39,6 +39,7 @@ func createTable() {
 		id SERIAL PRIMARY KEY,
 		user_id INTEGER NOT NULL,
 		event_id INTEGER NOT NULL,
+		seat_id VARCHAR(128),
 		tickets INTEGER NOT NULL,
 		total_amount DECIMAL(10,2) NOT NULL,
 		status VARCHAR(50) DEFAULT 'pending',
@@ -52,4 +53,5 @@ func createTable() {
 	} else {
 		log.Println("Bookings table ready")
 	}
+
 }

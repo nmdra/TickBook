@@ -1,5 +1,6 @@
 const { getStripeClient, isStripeConfigured } = require('../config/stripe');
 const { publishPaymentEvent } = require('../config/kafka');
+const { deleteSeatLock, validateSeatLock } = require('../config/lockStore');
 const { getBookingById, updateBookingStatus } = require('../services/bookingService');
 const {
   DEFAULT_CURRENCY,
@@ -20,6 +21,8 @@ const SERVICE_PORT = process.env.PORT || 3004;
 const DEFAULT_SUCCESS_URL = `http://localhost:${SERVICE_PORT}/api/payments/stripe/success?session_id={CHECKOUT_SESSION_ID}`;
 const DEFAULT_CANCEL_URL = `http://localhost:${SERVICE_PORT}/api/payments/stripe/cancel?session_id={CHECKOUT_SESSION_ID}`;
 const EMITTED_PAYMENT_STATUSES = new Set(['completed', 'failed', 'refunded']);
+const SEAT_LOCK_REQUIRED_MESSAGE =
+  'Your seat reservation has expired or is invalid. Please select your seat again to continue with payment.';
 
 const ensureUrlContainsSessionId = (url, fallbackUrl) => {
   const resolved = (url && String(url).trim()) || fallbackUrl;
@@ -50,6 +53,19 @@ const getStripeSessionUrls = (requestBody = {}) => ({
     DEFAULT_CANCEL_URL
   ),
 });
+
+const ensureSeatLockForBooking = async (booking, sessionToken) => {
+  if (!booking?.seat_id) {
+    return true;
+  }
+
+  return validateSeatLock({
+    userId: booking.user_id,
+    eventId: booking.event_id,
+    seatId: booking.seat_id,
+    sessionToken,
+  });
+};
 
 const syncBookingConfirmation = async (payment) => {
   try {
@@ -125,6 +141,10 @@ const resolvePaymentFromPaymentIntent = async (paymentIntent) => {
 
 const markStripeSessionCompleted = async (session) => {
   const payment = await resolvePaymentFromStripeSession(session);
+  const booking = await getBookingById(payment.booking_id);
+  if (!booking) {
+    throw new Error(`Booking ${payment.booking_id} not found`);
+  }
 
   const updatedPayment = await updatePaymentStatusById(payment.id, 'completed', {
     paymentMethod: 'stripe',
@@ -144,6 +164,7 @@ const markStripeSessionCompleted = async (session) => {
 
   if (updatedPayment) {
     await syncBookingConfirmation(updatedPayment);
+    await deleteSeatLock({ eventId: booking.event_id, seatId: booking.seat_id });
     await emitPaymentStatusEvent(updatedPayment);
   }
 
@@ -226,7 +247,7 @@ const getPaymentById = async (req, res) => {
 const createPayment = async (req, res) => {
   try {
     const body = req.body || {};
-    const { bookingId, status, paymentMethod, currency } = body;
+    const { bookingId, status, paymentMethod, currency, sessionToken } = body;
 
     if (!bookingId) {
       return res.status(400).json({ error: 'bookingId is required' });
@@ -241,8 +262,17 @@ const createPayment = async (req, res) => {
     }
 
     const booking = await getBookingById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
     if (booking.status === 'cancelled') {
       return res.status(400).json({ error: 'Cannot create a payment for a cancelled booking' });
+    }
+    const hasSeatLock = await ensureSeatLockForBooking(booking, sessionToken);
+    if (!hasSeatLock) {
+      return res.status(409).json({
+        error: SEAT_LOCK_REQUIRED_MESSAGE,
+      });
     }
 
     const payment = await createOrUpdatePendingPayment({
@@ -271,6 +301,7 @@ const createPayment = async (req, res) => {
 
     if (updatedPayment.status === 'completed') {
       await syncBookingConfirmation(updatedPayment);
+      await deleteSeatLock({ eventId: booking.event_id, seatId: booking.seat_id });
     }
 
     await emitPaymentStatusEvent(updatedPayment);
@@ -315,6 +346,10 @@ const updatePaymentStatus = async (req, res) => {
 
     if (updatedPayment.status === 'completed') {
       await syncBookingConfirmation(updatedPayment);
+      const booking = await getBookingById(updatedPayment.booking_id);
+      if (booking) {
+        await deleteSeatLock({ eventId: booking.event_id, seatId: booking.seat_id });
+      }
     }
 
     await emitPaymentStatusEvent(updatedPayment);
@@ -346,9 +381,19 @@ const createStripeCheckoutSession = async (req, res) => {
 
     const body = req.body || {};
     const { bookingId } = req.params;
+    const sessionToken = req.body?.sessionToken;
     const booking = await getBookingById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
     if (booking.status === 'cancelled') {
       return res.status(400).json({ error: 'Cannot pay for a cancelled booking' });
+    }
+    const hasSeatLock = await ensureSeatLockForBooking(booking, sessionToken);
+    if (!hasSeatLock) {
+      return res.status(409).json({
+        error: SEAT_LOCK_REQUIRED_MESSAGE,
+      });
     }
 
     const existingPayment = await createOrUpdatePendingPayment({
