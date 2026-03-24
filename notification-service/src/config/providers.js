@@ -1,14 +1,13 @@
-const sendgridMail = require('@sendgrid/mail');
+const { Resend } = require('resend');
 const twilio = require('twilio');
 
-const getSendgridClient = () => {
-  const apiKey = process.env.SENDGRID_API_KEY;
+const getResendClient = () => {
+  const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     return null;
   }
 
-  sendgridMail.setApiKey(apiKey);
-  return sendgridMail;
+  return new Resend(apiKey);
 };
 
 const getTwilioClient = () => {
@@ -22,18 +21,22 @@ const getTwilioClient = () => {
 };
 
 const sendEmail = async ({ to, subject, text, html }) => {
-  const client = getSendgridClient();
+  const client = getResendClient();
   if (!client) {
-    throw new Error('SendGrid is not configured');
+    throw new Error('Resend is not configured');
   }
 
-  await client.send({
+  const response = await client.emails.send({
     to,
-    from: process.env.SENDGRID_FROM_EMAIL,
+    from: process.env.RESEND_FROM_EMAIL,
     subject,
     text,
     html,
   });
+
+  if (response?.error) {
+    throw new Error(`Resend send failed: ${response.error.message || 'unknown error'}`);
+  }
 };
 
 const sendSMS = async ({ to, body }) => {
