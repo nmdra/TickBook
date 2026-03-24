@@ -25,7 +25,7 @@ TickBook is a full-stack ticket booking platform composed of five independently 
 - **User Service** — Register and authenticate users with JWT-based security.
 - **Booking Service** — Book tickets with real-time availability validation across services.
 - **Payment Service** — Process payments triggered by booking events via Kafka.
-- **Notification Service** — Consumes domain events and sends notifications via SendGrid and Twilio.
+- **Notification Service** — Consumes domain events and sends notifications via Resend and Twilio.
 
 ## Tech Stack
 
@@ -39,7 +39,7 @@ TickBook is a full-stack ticket booking platform composed of five independently 
 | **Authentication** | JWT (jsonwebtoken), bcryptjs |
 | **API Docs** | Swagger / OpenAPI 3.0 (swagger-jsdoc, swaggo) |
 | **Containerization** | Docker, Docker Compose |
-| **Notifications** | SendGrid (email), Twilio (SMS/WhatsApp) |
+| **Notifications** | Resend (email), Twilio (SMS/WhatsApp) |
 | **CI/CD** | GitHub Actions, GHCR (optional ACR push) |
 
 ## Architecture
@@ -74,7 +74,7 @@ TickBook consists of five microservices that communicate via **REST** (synchrono
 | **User Service** | Node.js / Express | 3002 | PostgreSQL | User registration, authentication (JWT) |
 | **Booking Service** | Go / gorilla/mux | 3003 | PostgreSQL | Booking management, REST calls to Event & User services |
 | **Payment Service** | Node.js / Express | 3004 | PostgreSQL | Payment processing, Kafka consumer for bookings |
-| **Notification Service** | Node.js / Express | 3005 | None | Kafka-driven notifications via SendGrid and Twilio |
+| **Notification Service** | Node.js / Express | 3005 | None | Kafka-driven notifications via Resend and Twilio |
 
 ### Inter-Service Communication
 
@@ -658,8 +658,8 @@ Each service reads its configuration from environment variables. Copy the `.env.
 | `NOTIF_PUSH_DLQ_TOPIC` | Push dead-letter topic | `notif.push.dlq` |
 | `NOTIF_WHATSAPP_DLQ_TOPIC` | WhatsApp dead-letter topic | `notif.whatsapp.dlq` |
 | `NOTIFICATION_WORKER_CHANNELS` | Enabled channel workers | `email,sms,push,whatsapp` |
-| `SENDGRID_API_KEY` | SendGrid API key for email delivery | *(required for email sends)* |
-| `SENDGRID_FROM_EMAIL` | Sender email for SendGrid | `no-reply@tickbook.local` |
+| `RESEND_API_KEY` | Resend API key for email delivery | *(required for email sends)* |
+| `RESEND_FROM_EMAIL` | Sender email for Resend | `no-reply@tickbook.local` |
 | `TWILIO_ACCOUNT_SID` | Twilio account SID | *(required for sms/whatsapp sends)* |
 | `TWILIO_AUTH_TOKEN` | Twilio auth token | *(required for sms/whatsapp sends)* |
 | `TWILIO_SMS_FROM` | Twilio SMS sender number | *(required for sms sends)* |
@@ -699,7 +699,7 @@ TickBook/
 ├── user-service/           # Node.js – User auth & management
 ├── booking-service/        # Go – Booking management
 ├── payment-service/        # Node.js – Payment processing
-├── notification-service/   # Node.js – Kafka notifications (SendGrid/Twilio)
+├── notification-service/   # Node.js – Kafka notifications (Resend/Twilio)
 ├── postman/                # Postman API collection
 ├── docker-compose.yml      # Local development orchestration
 └── .github/workflows/      # CI/CD pipelines

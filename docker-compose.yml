@@ -226,8 +226,8 @@ services:
       NOTIF_PUSH_DLQ_TOPIC: notif.push.dlq
       NOTIF_WHATSAPP_DLQ_TOPIC: notif.whatsapp.dlq
       NOTIFICATION_WORKER_CHANNELS: email,sms,push,whatsapp
-      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
-      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-no-reply@tickbook.local}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-no-reply@tickbook.local}
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
       TWILIO_SMS_FROM: ${TWILIO_SMS_FROM:-}
