@@ -16,6 +16,8 @@
   - "user-service"
   - "booking-service"
   - "payment-service"
+  - "notification-service (feature-level logical service)"
+- "logical_service_note": "A logical service defines responsibilities and contracts; it may be implemented as modules/workers within existing deployed services rather than a standalone deployable."
 
 ### FEATURE_1_DISTRIBUTED_SEAT_LOCKING
 - "goal": "Prevent overselling by placing short-lived distributed locks on seats before payment completion."
@@ -64,13 +66,13 @@
 ### KAFKA_EVENT_MODEL
 - "topics":
   - "bookings": "Booking domain events for downstream processors."
-  - "payments": "Payment outcome events consumed by booking-service."
+  - "payments": "Payment outcome events consumed by booking-service when KAFKA_PAYMENTS_TOPIC is configured (current deployment uses this pattern)."
   - "events": "Event-service lifecycle/publication events."
 - "message_schema_guidance":
   - "event_id": "Unique event identifier for idempotency."
   - "event_type": "Domain event type string."
   - "aggregate_id": "Entity identifier (booking_id, payment_id, event_id)."
-  - "timestamp": "RFC3339 UTC timestamp."
+  - "timestamp": "RFC3339 UTC timestamp using Z suffix (example: 2024-03-24T10:30:00Z)."
   - "payload": "Event-specific object."
 - "ordering_and_keys":
   - "Use aggregate_id as partition key where ordering per entity matters."
@@ -89,6 +91,9 @@
 - "payment-service":
   - "Process payment intents/charges."
   - "Publish payment success/failure events."
+- "notification-service (logical)":
+  - "Consume booking/payment/event lifecycle events."
+  - "Route templated notifications to email, SMS, push, and webhooks."
 
 ### OPERATIONAL_GUARDRAILS
 - "security":
@@ -102,4 +107,3 @@
 - "observability":
   - "Structured logs with correlation IDs across services."
   - "Capture booking/payment event traces for troubleshooting."
-
