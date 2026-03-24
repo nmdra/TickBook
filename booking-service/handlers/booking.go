@@ -147,6 +147,11 @@ func CreateBooking(w http.ResponseWriter, r *http.Request) {
 	).Scan(&booking.ID, &booking.UserID, &booking.EventID, &booking.SeatID, &booking.Tickets, &booking.TotalAmount, &booking.Status, &booking.CreatedAt, &booking.UpdatedAt)
 
 	if err != nil {
+		releaseCtx, cancelRelease := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancelRelease()
+		if releaseErr := SeatLockManager.DeleteLock(releaseCtx, req.EventID, req.SeatID); releaseErr != nil {
+			log.Printf("Warning: failed to release seat lock after booking insert failure: %v", releaseErr)
+		}
 		respondError(w, http.StatusInternalServerError, "Failed to create booking")
 		return
 	}

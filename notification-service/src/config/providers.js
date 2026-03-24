@@ -63,7 +63,7 @@ const sendWhatsApp = async ({ to, body }) => {
 };
 
 const sendPush = async ({ to, body }) => {
-  console.log(`Push notification sent to ${to}: ${body}`);
+  console.log(`Push notification placeholder sent to ${to}: ${body}`);
 };
 
 module.exports = {
