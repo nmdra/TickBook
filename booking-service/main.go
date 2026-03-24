@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/gorilla/mux"
@@ -13,6 +15,7 @@ import (
 	"github.com/nmdra/TickBook/booking-service/database"
 	"github.com/nmdra/TickBook/booking-service/handlers"
 	"github.com/nmdra/TickBook/booking-service/kafka"
+	"github.com/nmdra/TickBook/booking-service/lock"
 
 	"github.com/rs/cors"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -22,8 +25,19 @@ func main() {
 	cfg := config.Load()
 
 	database.Connect(cfg)
-	kafka.InitProducer(cfg.KafkaBrokers)
+	kafka.InitProducer(cfg.KafkaBrokers, cfg.KafkaBookingsTopic)
 	kafka.StartPaymentConsumer(cfg.KafkaBrokers, cfg.KafkaPaymentsGroup, cfg.KafkaPaymentsTopic)
+
+	lockManager, err := lock.NewLockManager(
+		cfg.RedisAddr,
+		strings.Split(cfg.KafkaBrokers, ","),
+		cfg.SeatLockGroup,
+	)
+	if err != nil {
+		log.Fatalf("Failed to initialize seat lock manager: %v", err)
+	}
+	lockManager.Start(context.Background())
+	handlers.SeatLockManager = lockManager
 
 	handlers.EventServiceURL = cfg.EventServiceURL
 	handlers.UserServiceURL = cfg.UserServiceURL
@@ -70,6 +84,7 @@ func main() {
 		<-sigChan
 		log.Println("Shutting down...")
 		kafka.StopPaymentConsumer()
+		lockManager.Close()
 		kafka.Close()
 		os.Exit(0)
 	}()

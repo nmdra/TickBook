@@ -19,12 +19,13 @@ A microservices-based event ticket booking system built with **Node.js** and **G
 
 ## Project Overview
 
-TickBook is a full-stack ticket booking platform composed of four independently deployable microservices:
+TickBook is a full-stack ticket booking platform composed of five independently deployable microservices:
 
 - **Event Service** — Create, update, delete, and query events with Redis caching for fast reads.
 - **User Service** — Register and authenticate users with JWT-based security.
 - **Booking Service** — Book tickets with real-time availability validation across services.
 - **Payment Service** — Process payments triggered by booking events via Kafka.
+- **Notification Service** — Consumes domain events and sends notifications via SendGrid and Twilio.
 
 ## Tech Stack
 
@@ -38,11 +39,12 @@ TickBook is a full-stack ticket booking platform composed of four independently 
 | **Authentication** | JWT (jsonwebtoken), bcryptjs |
 | **API Docs** | Swagger / OpenAPI 3.0 (swagger-jsdoc, swaggo) |
 | **Containerization** | Docker, Docker Compose |
+| **Notifications** | SendGrid (email), Twilio (SMS/WhatsApp) |
 | **CI/CD** | GitHub Actions, GHCR (optional ACR push) |
 
 ## Architecture
 
-TickBook consists of four microservices that communicate via **REST** (synchronous) and **Apache Kafka** (asynchronous event streaming).
+TickBook consists of five microservices that communicate via **REST** (synchronous) and **Apache Kafka** (asynchronous event streaming).
 
 ```
 ┌─────────────┐  REST   ┌──────────────┐  REST   ┌────────────────┐
@@ -52,10 +54,16 @@ TickBook consists of four microservices that communicate via **REST** (synchrono
                                │                        │
                           Kafka│"bookings"          Kafka│"events"
                                ▼                        ▼
-                       ┌───────────────┐
-                       │Payment Service│
-                       │  (Node.js)    │
-                       └───────────────┘
+                        ┌───────────────┐
+                        │Payment Service│
+                        │  (Node.js)    │
+                        └───────┬───────┘
+                                │ Kafka notification topics
+                                ▼
+                       ┌────────────────────┐
+                       │Notification Service│
+                       │     (Node.js)      │
+                       └────────────────────┘
 ```
 
 ### Services
@@ -66,11 +74,12 @@ TickBook consists of four microservices that communicate via **REST** (synchrono
 | **User Service** | Node.js / Express | 3002 | PostgreSQL | User registration, authentication (JWT) |
 | **Booking Service** | Go / gorilla/mux | 3003 | PostgreSQL | Booking management, REST calls to Event & User services |
 | **Payment Service** | Node.js / Express | 3004 | PostgreSQL | Payment processing, Kafka consumer for bookings |
+| **Notification Service** | Node.js / Express | 3005 | None | Kafka-driven notifications via SendGrid and Twilio |
 
 ### Inter-Service Communication
 
 - **REST (Synchronous):** Booking Service calls Event Service (check availability) and User Service (validate user).
-- **Kafka (Asynchronous):** Booking Service publishes to `bookings` topic → Payment Service consumes and creates payments. Payment Service publishes payment status updates to `payments` → Booking Service consumes to confirm or cancel bookings. Event Service publishes to `events` topic.
+- **Kafka (Asynchronous):** Booking Service publishes to `bookings` topic → Payment Service consumes and creates payments. Payment Service publishes payment status updates to `payments` → Booking Service consumes to confirm or cancel bookings. Event Service publishes to `events` topic. Domain events are consumed by Notification Service, which routes to `notif.email`, `notif.sms`, `notif.push`, and `notif.whatsapp`.
 
 ## Prerequisites
 
@@ -138,6 +147,15 @@ npm ci                      # Install dependencies
 npm start                   # Start the service
 ```
 
+#### Notification Service
+
+```bash
+cd notification-service
+cp .env.example .env        # Edit .env with your local settings
+npm ci                      # Install dependencies
+npm start                   # Start the service
+```
+
 ## Docker Usage
 
 ### Run All Services
@@ -194,6 +212,7 @@ and routes `/api/events`, `/api/users`, `/api/bookings`, and `/api/payments` to 
 | User Service | http://localhost:3002 | http://localhost:3002/api-docs |
 | Booking Service | http://localhost:3003 | http://localhost:3003/swagger/ |
 | Payment Service | http://localhost:3004 | http://localhost:3004/api-docs |
+| Notification Service | http://localhost:3005 | http://localhost:3005/api-docs |
 
 ## API Documentation
 
@@ -621,6 +640,31 @@ Each service reads its configuration from environment variables. Copy the `.env.
 | `KAFKA_PAYMENTS_TOPIC` | Kafka topic for payment status events | `payments` |
 | `BOOKING_SERVICE_URL` | Booking Service base URL | `http://localhost:3003` |
 
+### Notification Service
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Server port | `3005` |
+| `KAFKA_BROKERS` | Kafka broker addresses | `localhost:9092` |
+| `NOTIF_ROUTER_CLIENT_ID` | Kafka client id for router | `notification-router` |
+| `NOTIF_ROUTER_GROUP` | Kafka consumer group for router | `notification-router` |
+| `NOTIF_DOMAIN_TOPICS` | Domain Kafka topics consumed by router | `bookings,payments,seat.lock.expired,waitlist,refunds` |
+| `NOTIF_EMAIL_TOPIC` | Internal email topic | `notif.email` |
+| `NOTIF_SMS_TOPIC` | Internal SMS topic | `notif.sms` |
+| `NOTIF_PUSH_TOPIC` | Internal push topic | `notif.push` |
+| `NOTIF_WHATSAPP_TOPIC` | Internal WhatsApp topic | `notif.whatsapp` |
+| `NOTIF_EMAIL_DLQ_TOPIC` | Email dead-letter topic | `notif.email.dlq` |
+| `NOTIF_SMS_DLQ_TOPIC` | SMS dead-letter topic | `notif.sms.dlq` |
+| `NOTIF_PUSH_DLQ_TOPIC` | Push dead-letter topic | `notif.push.dlq` |
+| `NOTIF_WHATSAPP_DLQ_TOPIC` | WhatsApp dead-letter topic | `notif.whatsapp.dlq` |
+| `NOTIFICATION_WORKER_CHANNELS` | Enabled channel workers | `email,sms,push,whatsapp` |
+| `SENDGRID_API_KEY` | SendGrid API key for email delivery | *(required for email sends)* |
+| `SENDGRID_FROM_EMAIL` | Sender email for SendGrid | `no-reply@tickbook.local` |
+| `TWILIO_ACCOUNT_SID` | Twilio account SID | *(required for sms/whatsapp sends)* |
+| `TWILIO_AUTH_TOKEN` | Twilio auth token | *(required for sms/whatsapp sends)* |
+| `TWILIO_SMS_FROM` | Twilio SMS sender number | *(required for sms sends)* |
+| `TWILIO_WHATSAPP_FROM` | Twilio WhatsApp sender | `whatsapp:+14155238886` |
+
 ## Postman Collection
 
 A Postman collection is included in the [`postman/`](postman/) directory for easy API testing.
@@ -655,6 +699,7 @@ TickBook/
 ├── user-service/           # Node.js – User auth & management
 ├── booking-service/        # Go – Booking management
 ├── payment-service/        # Node.js – Payment processing
+├── notification-service/   # Node.js – Kafka notifications (SendGrid/Twilio)
 ├── postman/                # Postman API collection
 ├── docker-compose.yml      # Local development orchestration
 └── .github/workflows/      # CI/CD pipelines

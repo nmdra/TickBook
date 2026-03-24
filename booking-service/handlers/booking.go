@@ -1,24 +1,30 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/nmdra/TickBook/booking-service/database"
 	"github.com/nmdra/TickBook/booking-service/kafka"
+	"github.com/nmdra/TickBook/booking-service/lock"
 	"github.com/nmdra/TickBook/booking-service/models"
 )
 
 var (
 	EventServiceURL string
 	UserServiceURL  string
+	SeatLockManager *lock.LockManager
 )
+
+const seatLockRequestTimeout = 6 * time.Second
 
 func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
@@ -33,7 +39,7 @@ func respondError(w http.ResponseWriter, status int, message string) {
 // GetBookings returns all bookings
 func GetBookings(w http.ResponseWriter, r *http.Request) {
 	rows, err := database.DB.Query(
-		"SELECT id, user_id, event_id, tickets, total_amount, status, created_at, updated_at FROM bookings ORDER BY created_at DESC",
+		"SELECT id, user_id, event_id, COALESCE(seat_id, ''), tickets, total_amount, status, created_at, updated_at FROM bookings ORDER BY created_at DESC",
 	)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to fetch bookings")
@@ -44,7 +50,7 @@ func GetBookings(w http.ResponseWriter, r *http.Request) {
 	var bookings []models.Booking
 	for rows.Next() {
 		var b models.Booking
-		if err := rows.Scan(&b.ID, &b.UserID, &b.EventID, &b.Tickets, &b.TotalAmount, &b.Status, &b.CreatedAt, &b.UpdatedAt); err != nil {
+		if err := rows.Scan(&b.ID, &b.UserID, &b.EventID, &b.SeatID, &b.Tickets, &b.TotalAmount, &b.Status, &b.CreatedAt, &b.UpdatedAt); err != nil {
 			respondError(w, http.StatusInternalServerError, "Failed to scan booking")
 			return
 		}
@@ -68,8 +74,8 @@ func GetBooking(w http.ResponseWriter, r *http.Request) {
 
 	var b models.Booking
 	err = database.DB.QueryRow(
-		"SELECT id, user_id, event_id, tickets, total_amount, status, created_at, updated_at FROM bookings WHERE id = $1", id,
-	).Scan(&b.ID, &b.UserID, &b.EventID, &b.Tickets, &b.TotalAmount, &b.Status, &b.CreatedAt, &b.UpdatedAt)
+		"SELECT id, user_id, event_id, COALESCE(seat_id, ''), tickets, total_amount, status, created_at, updated_at FROM bookings WHERE id = $1", id,
+	).Scan(&b.ID, &b.UserID, &b.EventID, &b.SeatID, &b.Tickets, &b.TotalAmount, &b.Status, &b.CreatedAt, &b.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		respondError(w, http.StatusNotFound, "Booking not found")
@@ -95,6 +101,12 @@ func CreateBooking(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "user_id, event_id, and tickets must be positive integers")
 		return
 	}
+	req.SeatID = strings.TrimSpace(req.SeatID)
+	req.SessionToken = strings.TrimSpace(req.SessionToken)
+	if req.SeatID == "" || req.SessionToken == "" {
+		respondError(w, http.StatusBadRequest, "seat_id and session_token are required")
+		return
+	}
 
 	// Validate user exists via User Service
 	userURL := fmt.Sprintf("%s/api/users/%d", UserServiceURL, req.UserID)
@@ -112,18 +124,34 @@ func CreateBooking(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, fmt.Sprintf("Event availability check failed: %v", err))
 		return
 	}
+	if SeatLockManager == nil {
+		respondError(w, http.StatusServiceUnavailable, "seat lock manager is unavailable")
+		return
+	}
+
+	lockCtx, cancelLock := context.WithTimeout(r.Context(), seatLockRequestTimeout)
+	defer cancelLock()
+	if _, err := SeatLockManager.RequestLock(lockCtx, req.UserID, req.EventID, req.SeatID, req.SessionToken); err != nil {
+		respondError(w, http.StatusConflict, err.Error())
+		return
+	}
 
 	totalAmount := ticketPrice * float64(req.Tickets)
 
 	var booking models.Booking
 	err = database.DB.QueryRow(
-		`INSERT INTO bookings (user_id, event_id, tickets, total_amount, status, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, 'pending', $5, $5)
-		 RETURNING id, user_id, event_id, tickets, total_amount, status, created_at, updated_at`,
-		req.UserID, req.EventID, req.Tickets, totalAmount, time.Now(),
-	).Scan(&booking.ID, &booking.UserID, &booking.EventID, &booking.Tickets, &booking.TotalAmount, &booking.Status, &booking.CreatedAt, &booking.UpdatedAt)
+		`INSERT INTO bookings (user_id, event_id, seat_id, tickets, total_amount, status, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, 'pending', $6, $6)
+		 RETURNING id, user_id, event_id, seat_id, tickets, total_amount, status, created_at, updated_at`,
+		req.UserID, req.EventID, req.SeatID, req.Tickets, totalAmount, time.Now(),
+	).Scan(&booking.ID, &booking.UserID, &booking.EventID, &booking.SeatID, &booking.Tickets, &booking.TotalAmount, &booking.Status, &booking.CreatedAt, &booking.UpdatedAt)
 
 	if err != nil {
+		releaseCtx, cancelRelease := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancelRelease()
+		if releaseErr := SeatLockManager.DeleteLock(releaseCtx, req.EventID, req.SeatID); releaseErr != nil {
+			log.Printf("Warning: failed to release seat lock after booking insert failure: %v", releaseErr)
+		}
 		respondError(w, http.StatusInternalServerError, "Failed to create booking")
 		return
 	}
@@ -134,11 +162,12 @@ func CreateBooking(w http.ResponseWriter, r *http.Request) {
 		BookingID: booking.ID,
 		UserID:    booking.UserID,
 		EventID:   booking.EventID,
+		SeatID:    booking.SeatID,
 		Tickets:   booking.Tickets,
 		Amount:    booking.TotalAmount,
 		Status:    booking.Status,
 	}
-	if err := kafka.Publish("booking.created", kafkaEvent); err != nil {
+	if err := kafka.Publish(strconv.Itoa(booking.EventID), kafkaEvent); err != nil {
 		log.Printf("Warning: Failed to publish booking.created event: %v", err)
 	}
 
@@ -174,9 +203,9 @@ func UpdateBookingStatus(w http.ResponseWriter, r *http.Request) {
 	var booking models.Booking
 	err = database.DB.QueryRow(
 		`UPDATE bookings SET status = $1, updated_at = $2 WHERE id = $3
-		 RETURNING id, user_id, event_id, tickets, total_amount, status, created_at, updated_at`,
+		 RETURNING id, user_id, event_id, COALESCE(seat_id, ''), tickets, total_amount, status, created_at, updated_at`,
 		req.Status, time.Now(), id,
-	).Scan(&booking.ID, &booking.UserID, &booking.EventID, &booking.Tickets, &booking.TotalAmount, &booking.Status, &booking.CreatedAt, &booking.UpdatedAt)
+	).Scan(&booking.ID, &booking.UserID, &booking.EventID, &booking.SeatID, &booking.Tickets, &booking.TotalAmount, &booking.Status, &booking.CreatedAt, &booking.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		respondError(w, http.StatusNotFound, "Booking not found")
@@ -202,9 +231,9 @@ func DeleteBooking(w http.ResponseWriter, r *http.Request) {
 	var booking models.Booking
 	err = database.DB.QueryRow(
 		`UPDATE bookings SET status = 'cancelled', updated_at = $1 WHERE id = $2
-		 RETURNING id, user_id, event_id, tickets, total_amount, status, created_at, updated_at`,
+		 RETURNING id, user_id, event_id, COALESCE(seat_id, ''), tickets, total_amount, status, created_at, updated_at`,
 		time.Now(), id,
-	).Scan(&booking.ID, &booking.UserID, &booking.EventID, &booking.Tickets, &booking.TotalAmount, &booking.Status, &booking.CreatedAt, &booking.UpdatedAt)
+	).Scan(&booking.ID, &booking.UserID, &booking.EventID, &booking.SeatID, &booking.Tickets, &booking.TotalAmount, &booking.Status, &booking.CreatedAt, &booking.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		respondError(w, http.StatusNotFound, "Booking not found")
@@ -221,11 +250,12 @@ func DeleteBooking(w http.ResponseWriter, r *http.Request) {
 		BookingID: booking.ID,
 		UserID:    booking.UserID,
 		EventID:   booking.EventID,
+		SeatID:    booking.SeatID,
 		Tickets:   booking.Tickets,
 		Amount:    booking.TotalAmount,
 		Status:    booking.Status,
 	}
-	if err := kafka.Publish("booking.cancelled", kafkaEvent); err != nil {
+	if err := kafka.Publish(strconv.Itoa(booking.EventID), kafkaEvent); err != nil {
 		log.Printf("Warning: Failed to publish booking.cancelled event: %v", err)
 	}
 
@@ -242,7 +272,7 @@ func GetBookingsByUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := database.DB.Query(
-		"SELECT id, user_id, event_id, tickets, total_amount, status, created_at, updated_at FROM bookings WHERE user_id = $1 ORDER BY created_at DESC", userID,
+		"SELECT id, user_id, event_id, COALESCE(seat_id, ''), tickets, total_amount, status, created_at, updated_at FROM bookings WHERE user_id = $1 ORDER BY created_at DESC", userID,
 	)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to fetch bookings")
@@ -253,7 +283,7 @@ func GetBookingsByUser(w http.ResponseWriter, r *http.Request) {
 	var bookings []models.Booking
 	for rows.Next() {
 		var b models.Booking
-		if err := rows.Scan(&b.ID, &b.UserID, &b.EventID, &b.Tickets, &b.TotalAmount, &b.Status, &b.CreatedAt, &b.UpdatedAt); err != nil {
+		if err := rows.Scan(&b.ID, &b.UserID, &b.EventID, &b.SeatID, &b.Tickets, &b.TotalAmount, &b.Status, &b.CreatedAt, &b.UpdatedAt); err != nil {
 			respondError(w, http.StatusInternalServerError, "Failed to scan booking")
 			return
 		}

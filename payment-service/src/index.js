@@ -21,6 +21,7 @@ const {
   disconnectConsumer,
   disconnectProducer,
 } = require('./config/kafka');
+const { disconnectLockStore } = require('./config/lockStore');
 const paymentRoutes = require('./routes/paymentRoutes');
 
 const app = express();
@@ -70,6 +71,7 @@ process.on('SIGTERM', async () => {
   console.log('SIGTERM received. Shutting down gracefully...');
   await disconnectConsumer();
   await disconnectProducer();
+  await disconnectLockStore();
   process.exit(0);
 });
 
@@ -77,6 +79,7 @@ process.on('SIGINT', async () => {
   console.log('SIGINT received. Shutting down gracefully...');
   await disconnectConsumer();
   await disconnectProducer();
+  await disconnectLockStore();
   process.exit(0);
 });
 

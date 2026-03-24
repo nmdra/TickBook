@@ -1,0 +1,47 @@
+const TEMPLATE_REGISTRY = {
+  'booking.confirmed': {
+    email: { en: { subject: 'Booking confirmed', body: 'Your booking {{bookingId}} is confirmed.' } },
+    push: { en: { body: 'Booking {{bookingId}} confirmed.' } },
+    sms: { en: { body: 'Booking {{bookingId}} confirmed.' } },
+  },
+  'booking.cancelled': {
+    email: { en: { subject: 'Booking cancelled', body: 'Booking {{bookingId}} has been cancelled.' } },
+    push: { en: { body: 'Booking {{bookingId}} cancelled.' } },
+  },
+  'payment.failed': {
+    email: { en: { subject: 'Payment failed', body: 'Payment failed for booking {{bookingId}}.' } },
+    sms: { en: { body: 'Payment failed for booking {{bookingId}}.' } },
+    push: { en: { body: 'Payment failed for booking {{bookingId}}.' } },
+  },
+  'seat.lock.expired': {
+    email: { en: { subject: 'Seat hold expired', body: 'Seat hold expired for event {{eventId}}.' } },
+    push: { en: { body: 'Your seat hold has expired.' } },
+  },
+  'waitlist.offer.sent': {
+    push: { en: { body: 'A waitlist offer is available now.' } },
+    sms: { en: { body: 'Waitlist offer available now.' } },
+    email: { en: { subject: 'Waitlist offer', body: 'A waitlist offer is now available.' } },
+  },
+  'refund.issued': {
+    email: { en: { subject: 'Refund issued', body: 'Your refund has been issued.' } },
+  },
+  'waitlist.position.updated': {
+    push: { en: { body: 'Your waitlist position was updated to {{position}}.' } },
+  },
+};
+
+const interpolate = (template, payload) =>
+  template.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key) => String(payload[key] ?? payload.data?.[key] ?? ''));
+
+const resolveTemplate = (eventType, channel, locale = 'en') => {
+  const channelTemplates = TEMPLATE_REGISTRY[eventType]?.[channel];
+  if (!channelTemplates) {
+    return null;
+  }
+  return channelTemplates[locale] || channelTemplates.en || null;
+};
+
+module.exports = {
+  resolveTemplate,
+  interpolate,
+};

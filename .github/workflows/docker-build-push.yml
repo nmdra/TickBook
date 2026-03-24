@@ -32,6 +32,8 @@ jobs:
               - 'booking-service/**'
             payment-service:
               - 'payment-service/**'
+            notification-service:
+              - 'notification-service/**'
             nginx-gateway:
               - 'nginx/**'
 
@@ -67,6 +69,7 @@ jobs:
             [user-service]=user-service/Dockerfile
             [booking-service]=booking-service/Dockerfile
             [payment-service]=payment-service/Dockerfile
+            [notification-service]=notification-service/Dockerfile
             [nginx-gateway]=nginx/Dockerfile
           )
           dockerfile=${dockerfiles["${{ matrix.service }}"]}
