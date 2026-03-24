@@ -164,6 +164,8 @@ services:
       DB_NAME: bookingdb
       KAFKA_PAYMENTS_TOPIC: payments
       KAFKA_PAYMENTS_GROUP: booking-service
+      KAFKA_SEAT_LOCK_GROUP: booking-seat-lock-processor
+      REDIS_ADDR: redis:6379
       EVENT_SERVICE_URL: http://event-service:3001
       USER_SERVICE_URL: http://user-service:3002
     depends_on:
@@ -188,6 +190,11 @@ services:
       DB_NAME: paymentdb
       KAFKA_RECONNECT_INTERVAL_MS: 15000
       KAFKA_PAYMENTS_TOPIC: payments
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NOTIFICATION_ROUTER_ENABLED: "true"
+      NOTIFICATION_WORKERS_ENABLED: "true"
+      NOTIFICATION_WORKER_CHANNELS: email,sms,push,whatsapp
       BOOKING_SERVICE_URL: http://booking-service:3003
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}

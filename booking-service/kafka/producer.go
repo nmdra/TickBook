@@ -12,15 +12,18 @@ import (
 
 var writer *kafkago.Writer
 
-func InitProducer(brokers string) {
+func InitProducer(brokers string, topic string) {
 	brokerList := strings.Split(brokers, ",")
+	if topic == "" {
+		topic = "bookings"
+	}
 	writer = &kafkago.Writer{
 		Addr:         kafkago.TCP(brokerList...),
-		Topic:        "bookings",
+		Topic:        topic,
 		Balancer:     &kafkago.LeastBytes{},
 		BatchTimeout: 10 * time.Millisecond,
 	}
-	log.Printf("Kafka producer initialized with brokers: %s", brokers)
+	log.Printf("Kafka producer initialized with brokers: %s and topic: %s", brokers, topic)
 }
 
 func Publish(key string, value interface{}) error {

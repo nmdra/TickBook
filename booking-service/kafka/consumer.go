@@ -105,11 +105,23 @@ func handlePaymentEvent(message []byte) error {
 }
 
 func confirmBookingIfNotCancelled(bookingID int) error {
-	return updateBookingStatusUnlessCurrentStatus(
+	if err := updateBookingStatusUnlessCurrentStatus(
 		bookingID,
 		bookingStatusConfirmed,
 		bookingStatusCancelled,
-	)
+	); err != nil {
+		return err
+	}
+
+	bookingEvent, err := getBookingEventPayload(bookingID)
+	if err != nil {
+		return err
+	}
+	if bookingEvent == nil {
+		return nil
+	}
+	bookingEvent.EventType = "booking.confirmed"
+	return Publish(fmt.Sprintf("%d", bookingEvent.EventID), bookingEvent)
 }
 
 func cancelBookingIfNotConfirmed(bookingID int) error {
@@ -173,4 +185,21 @@ func updateBookingStatusUnlessCurrentStatus(
 	}
 
 	return nil
+}
+
+func getBookingEventPayload(bookingID int) (*models.KafkaBookingEvent, error) {
+	var event models.KafkaBookingEvent
+	err := database.DB.QueryRow(
+		`SELECT id, user_id, event_id, COALESCE(seat_id, ''), tickets, total_amount, status
+		 FROM bookings
+		 WHERE id = $1`,
+		bookingID,
+	).Scan(&event.BookingID, &event.UserID, &event.EventID, &event.SeatID, &event.Tickets, &event.Amount, &event.Status)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &event, nil
 }

@@ -21,7 +21,10 @@ const {
   disconnectConsumer,
   disconnectProducer,
 } = require('./config/kafka');
+const { disconnectLockStore } = require('./config/lockStore');
 const paymentRoutes = require('./routes/paymentRoutes');
+const { startNotificationRouter } = require('./notification/router');
+const { startChannelWorker } = require('./notification/channelWorker');
 
 const app = express();
 const PORT = process.env.PORT || 3004;
@@ -64,12 +67,32 @@ const start = async () => {
 
   void connectConsumer();
   void connectProducer();
+
+  if (String(process.env.NOTIFICATION_ROUTER_ENABLED || '').toLowerCase() === 'true') {
+    void startNotificationRouter().catch((err) => {
+      console.warn('Notification router failed to start:', err.message);
+    });
+  }
+
+  if (String(process.env.NOTIFICATION_WORKERS_ENABLED || '').toLowerCase() === 'true') {
+    const channels = (process.env.NOTIFICATION_WORKER_CHANNELS || 'email,sms,push,whatsapp')
+      .split(',')
+      .map((channel) => channel.trim())
+      .filter(Boolean);
+
+    channels.forEach((channel) => {
+      void startChannelWorker(channel).catch((err) => {
+        console.warn(`Notification worker failed for channel ${channel}:`, err.message);
+      });
+    });
+  }
 };
 
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received. Shutting down gracefully...');
   await disconnectConsumer();
   await disconnectProducer();
+  await disconnectLockStore();
   process.exit(0);
 });
 
@@ -77,6 +100,7 @@ process.on('SIGINT', async () => {
   console.log('SIGINT received. Shutting down gracefully...');
   await disconnectConsumer();
   await disconnectProducer();
+  await disconnectLockStore();
   process.exit(0);
 });
 
