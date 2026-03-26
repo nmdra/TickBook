@@ -1,4 +1,13 @@
 const TEMPLATE_REGISTRY = {
+  'event.created': {
+    email: { en: { subject: 'New event published', body: 'A new event "{{title}}" is now available.' } },
+    push: { en: { body: 'New event "{{title}}" is now live.' } },
+  },
+  'booking.created': {
+    email: { en: { subject: 'Booking received', body: 'Your booking {{bookingId}} has been created and is pending payment.' } },
+    push: { en: { body: 'Booking {{bookingId}} created. Complete payment to confirm it.' } },
+    sms: { en: { body: 'Booking {{bookingId}} created. Payment pending.' } },
+  },
   'booking.confirmed': {
     email: { en: { subject: 'Booking confirmed', body: 'Your booking {{bookingId}} is confirmed.' } },
     push: { en: { body: 'Booking {{bookingId}} confirmed.' } },

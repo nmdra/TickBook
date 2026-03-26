@@ -13,7 +13,7 @@ const DLQ_TOPICS = {
 };
 
 const DOMAIN_TOPICS = (process.env.NOTIF_DOMAIN_TOPICS ||
-  'bookings,payments,seat.lock.expired,waitlist,refunds')
+  'events,bookings,payments,seat.lock.expired,waitlist,refunds')
   .split(',')
   .map((topic) => topic.trim())
   .filter(Boolean);

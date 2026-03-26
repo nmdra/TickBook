@@ -4,6 +4,8 @@ const { getPreferences } = require('../config/preferences');
 const { resolveTemplate } = require('../config/templates');
 
 const EVENT_CHANNEL_RULES = {
+  'event.created': ['email', 'push'],
+  'booking.created': ['email', 'push', 'sms'],
   'booking.confirmed': ['email', 'push', 'sms'],
   'booking.cancelled': ['email', 'push'],
   'payment.failed': ['email', 'sms', 'push'],

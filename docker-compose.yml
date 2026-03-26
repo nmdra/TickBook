@@ -216,7 +216,7 @@ services:
       PORT: 3005
       NOTIF_ROUTER_CLIENT_ID: notification-router
       NOTIF_ROUTER_GROUP: notification-router
-      NOTIF_DOMAIN_TOPICS: bookings,payments,seat.lock.expired,waitlist,refunds
+      NOTIF_DOMAIN_TOPICS: events,bookings,payments,seat.lock.expired,waitlist,refunds
       NOTIF_EMAIL_TOPIC: notif.email
       NOTIF_SMS_TOPIC: notif.sms
       NOTIF_PUSH_TOPIC: notif.push
