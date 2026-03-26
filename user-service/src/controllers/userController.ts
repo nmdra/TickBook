@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { timingSafeEqual } from 'crypto';
 import {
   LoginRequestDto,
   LogoutRequestDto,
@@ -9,6 +10,7 @@ import {
 } from '../dtos/auth.dto';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { ServiceError, UserService } from '../services/userService';
+import { logger } from '../utils/logger';
 
 export class UserController {
   private readonly userService = new UserService();
@@ -152,6 +154,35 @@ export class UserController {
     }
   };
 
+  listUsersForNotifications = async (_req: Request, res: Response): Promise<Response> => {
+    const configuredToken = process.env.INTERNAL_SERVICE_TOKEN;
+    const providedToken = _req.get('x-internal-token');
+
+    const isTokenValid =
+      !!configuredToken &&
+      !!providedToken &&
+      this.tokensEqual(providedToken, configuredToken);
+
+    if (!isTokenValid) {
+      logger.warn(
+        `Forbidden internal users access attempt from ${_req.ip || _req.socket?.remoteAddress || 'unknown'}`
+      );
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    try {
+      const users = await this.userService.listUsers();
+      return res.json(
+        users.map((user) => ({
+          id: user.id,
+          email: user.email,
+        }))
+      );
+    } catch (error) {
+      return this.handleError(res, error, 'List users for notifications error:');
+    }
+  };
+
   updateUser = async (
     req: AuthenticatedRequest & Request<{ id: string }, unknown, UpdateUserRequestDto>,
     res: Response
@@ -207,5 +238,16 @@ export class UserController {
     redirectUrl.searchParams.set('dashboardUrl', this.frontendDashboardUrl);
 
     return redirectUrl.toString();
+  }
+
+  private tokensEqual(a: string, b: string): boolean {
+    const aBuffer = Buffer.from(a);
+    const bBuffer = Buffer.from(b);
+
+    if (aBuffer.length !== bBuffer.length) {
+      return false;
+    }
+
+    return timingSafeEqual(aBuffer, bBuffer);
   }
 }
