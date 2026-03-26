@@ -16,9 +16,9 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const buildContent = (notification) => {
   const payload = notification.payload || {};
-  const bookingId = payload.booking_id || payload.bookingId || payload.id || 'N/A';
+  const bookingId = payload.booking_id || payload.bookingId || 'N/A';
   const eventId = payload.event_id || payload.eventId || '';
-  const title = payload.title || payload.event_title || payload.name || 'new event';
+  const title = payload.title || payload.event_title || payload.name || 'Untitled';
   const position = payload.position || payload.data?.position || '';
 
   const templatePayload = {
