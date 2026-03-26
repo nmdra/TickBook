@@ -547,7 +547,7 @@
               "header": [
                 { "key": "Content-Type", "value": "application/json" }
               ],
-              "body": "[\n  {\n    \"id\": 1,\n    \"user_id\": 1,\n    \"event_id\": 1,\n    \"tickets\": 2,\n    \"total_amount\": 199.98,\n    \"status\": \"pending\",\n    \"created_at\": \"2025-01-10T08:30:00.000Z\",\n    \"updated_at\": \"2025-01-10T08:30:00.000Z\"\n  }\n]"
+              "body": "[\n  {\n    \"id\": 1,\n    \"user_id\": 1,\n    \"event_id\": 1,\n    \"seat_id\": \"A1\",\n    \"tickets\": 2,\n    \"total_amount\": 199.98,\n    \"status\": \"pending\",\n    \"created_at\": \"2025-01-10T08:30:00.000Z\",\n    \"updated_at\": \"2025-01-10T08:30:00.000Z\"\n  }\n]"
             }
           ]
         },
@@ -571,7 +571,7 @@
               "header": [
                 { "key": "Content-Type", "value": "application/json" }
               ],
-              "body": "{\n  \"id\": 1,\n  \"user_id\": 1,\n  \"event_id\": 1,\n  \"tickets\": 2,\n  \"total_amount\": 199.98,\n  \"status\": \"pending\",\n  \"created_at\": \"2025-01-10T08:30:00.000Z\",\n  \"updated_at\": \"2025-01-10T08:30:00.000Z\"\n}"
+              "body": "{\n  \"id\": 1,\n  \"user_id\": 1,\n  \"event_id\": 1,\n  \"seat_id\": \"A1\",\n  \"tickets\": 2,\n  \"total_amount\": 199.98,\n  \"status\": \"pending\",\n  \"created_at\": \"2025-01-10T08:30:00.000Z\",\n  \"updated_at\": \"2025-01-10T08:30:00.000Z\"\n}"
             },
             {
               "name": "Get Booking - Not Found",
@@ -596,14 +596,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"user_id\": 1,\n  \"event_id\": 1,\n  \"tickets\": 2\n}"
+              "raw": "{\n  \"user_id\": 1,\n  \"event_id\": 1,\n  \"seat_id\": \"A1\",\n  \"session_token\": \"session_abc123\",\n  \"tickets\": 2\n}"
             },
             "url": {
               "raw": "{{bookingServiceUrl}}/api/bookings",
               "host": ["{{bookingServiceUrl}}"],
               "path": ["api", "bookings"]
             },
-            "description": "Create a new booking. The service validates the user (via User Service) and event availability (via Event Service) before creating the booking. The total_amount is calculated automatically based on the event price."
+            "description": "Create a new booking. The service validates the user (via User Service), checks event availability (via Event Service), and requires seat lock fields (`seat_id`, `session_token`) before creating the booking. The total_amount is calculated automatically based on the event price."
           },
           "response": [
             {
@@ -613,7 +613,7 @@
               "header": [
                 { "key": "Content-Type", "value": "application/json" }
               ],
-              "body": "{\n  \"id\": 1,\n  \"user_id\": 1,\n  \"event_id\": 1,\n  \"tickets\": 2,\n  \"total_amount\": 199.98,\n  \"status\": \"pending\",\n  \"created_at\": \"2025-01-10T08:30:00.000Z\",\n  \"updated_at\": \"2025-01-10T08:30:00.000Z\"\n}"
+              "body": "{\n  \"id\": 1,\n  \"user_id\": 1,\n  \"event_id\": 1,\n  \"seat_id\": \"A1\",\n  \"tickets\": 2,\n  \"total_amount\": 199.98,\n  \"status\": \"pending\",\n  \"created_at\": \"2025-01-10T08:30:00.000Z\",\n  \"updated_at\": \"2025-01-10T08:30:00.000Z\"\n}"
             },
             {
               "name": "Create Booking - Bad Request",
@@ -622,7 +622,7 @@
               "header": [
                 { "key": "Content-Type", "value": "application/json" }
               ],
-              "body": "{\n  \"error\": \"user_id, event_id, and tickets are required and must be positive integers\"\n}"
+              "body": "{\n  \"error\": \"seat_id and session_token are required\"\n}"
             }
           ]
         },
@@ -655,7 +655,7 @@
               "header": [
                 { "key": "Content-Type", "value": "application/json" }
               ],
-              "body": "{\n  \"id\": 1,\n  \"user_id\": 1,\n  \"event_id\": 1,\n  \"tickets\": 2,\n  \"total_amount\": 199.98,\n  \"status\": \"confirmed\",\n  \"created_at\": \"2025-01-10T08:30:00.000Z\",\n  \"updated_at\": \"2025-01-10T09:00:00.000Z\"\n}"
+              "body": "{\n  \"id\": 1,\n  \"user_id\": 1,\n  \"event_id\": 1,\n  \"seat_id\": \"A1\",\n  \"tickets\": 2,\n  \"total_amount\": 199.98,\n  \"status\": \"confirmed\",\n  \"created_at\": \"2025-01-10T08:30:00.000Z\",\n  \"updated_at\": \"2025-01-10T09:00:00.000Z\"\n}"
             }
           ]
         },
