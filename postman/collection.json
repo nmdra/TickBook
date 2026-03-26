@@ -603,7 +603,7 @@
               "host": ["{{bookingServiceUrl}}"],
               "path": ["api", "bookings"]
             },
-            "description": "Create a new booking. The service validates the user (via User Service), checks event availability (via Event Service), and requires seat lock fields (`seat_id`, `session_token`) before creating the booking. The total_amount is calculated automatically based on the event price."
+            "description": "Create a new booking. The service validates the user (via User Service), checks event availability (via Event Service), and verifies seat lock fields (`seat_id`, `session_token`) before creating the booking. The total_amount is calculated automatically based on the event price."
           },
           "response": [
             {
