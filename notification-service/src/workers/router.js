@@ -29,7 +29,12 @@ const fetchAllUsers = async () => {
       : {},
   });
   if (!response.ok) {
-    throw new Error(`User service returned status ${response.status}`);
+    const errorBody = await response.text();
+    throw new Error(
+      `Failed to fetch users from user-service: HTTP ${response.status}${
+        errorBody ? ` - ${errorBody.slice(0, 200)}` : ''
+      }`
+    );
   }
   const users = await response.json();
   return Array.isArray(users) ? users : [];
@@ -41,7 +46,28 @@ const resolveTargets = async (eventType, payload) => {
   }
 
   const singleUserId = payload.user_id || payload.userId;
+  if (!singleUserId) {
+    console.warn(`No target user found in payload for event type "${eventType}"`);
+  }
   return singleUserId ? [{ id: singleUserId, email: payload.email, phone: payload.phone }] : [];
+};
+
+const resolveTargetsWithRetry = async (eventType, payload) => {
+  const maxAttempts = 3;
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await resolveTargets(eventType, payload);
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 200));
+      }
+    }
+  }
+
+  throw lastError;
 };
 
 const startRouter = async () => {
@@ -76,13 +102,11 @@ const startRouter = async () => {
 
       let targets = [];
       try {
-        targets = await resolveTargets(eventType, payload);
+        targets = await resolveTargetsWithRetry(eventType, payload);
       } catch (error) {
-        console.warn(
-          `Failed resolving notification targets for ${eventType}: ${
-            error instanceof Error ? error.message : String(error)
-          }`
-        );
+        const reason = error instanceof Error ? error.message : String(error);
+        console.warn(`Failed resolving notification targets for ${eventType}: ${reason}`);
+        throw error;
       }
 
       if (!targets.length) {
@@ -116,6 +140,8 @@ const startRouter = async () => {
             idempotencyKey: buildIdempotencyKey(userId, eventType, eventId, channel),
             template,
             payload: {
+              // For fan-out events (event.created), we explicitly stamp recipient-specific identity/contact
+              // so channel workers can deliver per-user notifications while preserving source event data.
               ...payload,
               user_id: userId,
               email: target.email || payload.email,

@@ -100,13 +100,17 @@ export class UserService {
         ? publicUser.created_at.toISOString()
         : String(publicUser.created_at);
 
-    await publishUserEvent('user.registered', {
-      user_id: publicUser.id,
-      email: publicUser.email,
-      name: publicUser.name,
-      role: publicUser.role,
-      created_at: createdAt,
-    });
+    try {
+      await publishUserEvent('user.registered', {
+        user_id: publicUser.id,
+        email: publicUser.email,
+        name: publicUser.name,
+        role: publicUser.role,
+        created_at: createdAt,
+      });
+    } catch {
+      // publishUserEvent is designed to be non-fatal; registration success should not depend on Kafka availability.
+    }
 
     return publicUser;
   }

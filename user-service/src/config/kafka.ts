@@ -89,7 +89,9 @@ export const publishUserEvent = async (
     });
   } catch (error) {
     logger.warn(
-      `Kafka producer publish failed (non-fatal): ${
+      `Kafka producer publish failed for event "${eventType}" on topic "${
+        process.env.KAFKA_USERS_TOPIC || 'users'
+      }" (non-fatal): ${
         error instanceof Error ? error.message : String(error)
       }`
     );
