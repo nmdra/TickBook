@@ -16,10 +16,17 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const buildContent = (notification) => {
   const payload = notification.payload || {};
-  const bookingId = payload.booking_id || payload.bookingId || 'N/A';
+  const bookingId = payload.booking_id || payload.bookingId || '[Missing Booking ID]';
   const eventId = payload.event_id || payload.eventId || '';
   const title = payload.title || payload.event_title || payload.name || 'Untitled';
   const position = payload.position || payload.data?.position || '';
+
+  if (!payload.booking_id && !payload.bookingId && notification.eventType?.startsWith('booking.')) {
+    console.warn(`Missing booking ID for booking notification ${notification.idempotencyKey}`);
+  }
+  if (!payload.title && !payload.event_title && !payload.name && notification.eventType === 'event.created') {
+    console.warn(`Missing event title for notification ${notification.idempotencyKey}`);
+  }
 
   const templatePayload = {
     ...payload,
