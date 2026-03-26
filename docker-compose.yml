@@ -144,6 +144,8 @@ services:
     environment:
       PORT: 3002
       KAFKA_BROKERS: kafka:29092
+      KAFKA_USERS_TOPIC: users
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-change-me-in-prod}
       BOOKING_SERVICE_URL: http://booking-service:3003
       PAYMENT_SERVICE_URL: http://payment-service:3004
     depends_on:
@@ -216,7 +218,9 @@ services:
       PORT: 3005
       NOTIF_ROUTER_CLIENT_ID: notification-router
       NOTIF_ROUTER_GROUP: notification-router
-      NOTIF_DOMAIN_TOPICS: events,bookings,payments,seat.lock.expired,waitlist,refunds
+      NOTIF_DOMAIN_TOPICS: events,bookings,payments,seat.lock.expired,waitlist,refunds,users
+      USER_SERVICE_URL: http://user-service:3002
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-change-me-in-prod}
       NOTIF_EMAIL_TOPIC: notif.email
       NOTIF_SMS_TOPIC: notif.sms
       NOTIF_PUSH_TOPIC: notif.push

@@ -7,6 +7,8 @@ const kafka = new Kafka({
 });
 
 const consumer = kafka.consumer({ groupId: 'user-service-group' });
+const producer = kafka.producer();
+let producerConnected = false;
 
 export const connectConsumer = async (): Promise<void> => {
   try {
@@ -52,6 +54,60 @@ export const disconnectConsumer = async (): Promise<void> => {
   } catch (error) {
     logger.warn(
       `Kafka consumer disconnect error: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+};
+
+const connectProducer = async (): Promise<void> => {
+  if (producerConnected) {
+    return;
+  }
+
+  await producer.connect();
+  producerConnected = true;
+};
+
+export const publishUserEvent = async (
+  eventType: string,
+  payload: Record<string, unknown>
+): Promise<void> => {
+  try {
+    await connectProducer();
+    await producer.send({
+      topic: process.env.KAFKA_USERS_TOPIC || 'users',
+      messages: [
+        {
+          key: eventType,
+          value: JSON.stringify({
+            event_type: eventType,
+            ...payload,
+          }),
+        },
+      ],
+    });
+  } catch (error) {
+    logger.warn(
+      `Kafka producer publish failed (non-fatal): ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+};
+
+export const disconnectProducer = async (): Promise<void> => {
+  if (!producerConnected) {
+    return;
+  }
+
+  try {
+    await producer.disconnect();
+    producerConnected = false;
+    logger.info('Kafka producer disconnected.');
+  } catch (error) {
+    logger.warn(
+      `Kafka producer disconnect error: ${
         error instanceof Error ? error.message : String(error)
       }`
     );

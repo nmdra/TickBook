@@ -152,6 +152,27 @@ export class UserController {
     }
   };
 
+  listUsersForNotifications = async (_req: Request, res: Response): Promise<Response> => {
+    const configuredToken = process.env.INTERNAL_SERVICE_TOKEN;
+    const providedToken = _req.get('x-internal-token');
+
+    if (!configuredToken || providedToken !== configuredToken) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    try {
+      const users = await this.userService.listUsers();
+      return res.json(
+        users.map((user) => ({
+          id: user.id,
+          email: user.email,
+        }))
+      );
+    } catch (error) {
+      return this.handleError(res, error, 'List users for notifications error:');
+    }
+  };
+
   updateUser = async (
     req: AuthenticatedRequest & Request<{ id: string }, unknown, UpdateUserRequestDto>,
     res: Response

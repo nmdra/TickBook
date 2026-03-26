@@ -1,4 +1,12 @@
 const TEMPLATE_REGISTRY = {
+  'user.registered': {
+    email: {
+      en: {
+        subject: 'Welcome to TickBook',
+        body: 'Hi {{name}}, your TickBook account has been created successfully.',
+      },
+    },
+  },
   'event.created': {
     email: { en: { subject: 'New event published', body: 'A new event "{{title}}" is now available.' } },
     push: { en: { body: 'New event "{{title}}" is now live.' } },
