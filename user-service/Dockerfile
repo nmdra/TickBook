@@ -1,11 +1,11 @@
-FROM node:20-alpine AS builder
+FROM node:25-alpine AS builder
 WORKDIR /app
 COPY package.json tsconfig.json ./
 RUN npm install
 COPY src ./src
 RUN npm run build
 
-FROM node:20-alpine
+FROM node:25-alpine
 WORKDIR /app
 RUN addgroup -g 1001 appgroup && adduser -u 1001 -G appgroup -s /bin/sh -D appuser
 COPY package.json ./
