@@ -56,6 +56,7 @@ jobs:
       ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
       ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
       ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     permissions:
       contents: read
       packages: write
@@ -167,7 +168,7 @@ jobs:
             ${{ inputs.service }}.cache-from=type=gha,scope=${{ inputs.service }}
 
       - name: Notify Slack
-        if: always() && secrets.SLACK_WEBHOOK_URL != ''
+        if: always() && env.SLACK_WEBHOOK_URL != ''
         uses: slackapi/slack-github-action@v2.1.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -199,6 +200,7 @@ jobs:
       ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
       ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
       ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -240,7 +242,7 @@ jobs:
               -o table
 
       - name: Notify Slack
-        if: always() && secrets.SLACK_WEBHOOK_URL != ''
+        if: always() && env.SLACK_WEBHOOK_URL != ''
         uses: slackapi/slack-github-action@v2.1.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
