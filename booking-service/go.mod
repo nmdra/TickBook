@@ -5,7 +5,7 @@ go 1.25.7
 require (
 	github.com/gorilla/mux v1.8.1
 	github.com/lib/pq v1.11.2
-	github.com/redis/go-redis/v9 v9.6.1
+	github.com/redis/go-redis/v9 v9.6.3
 	github.com/segmentio/kafka-go v0.4.50
 	github.com/swaggo/http-swagger v1.3.4
 )
