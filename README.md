@@ -690,6 +690,10 @@ Required permissions/secrets:
 - `ACR_LOGIN_SERVER` – ACR registry hostname (e.g., `example.azurecr.io`) for optional push
 - `ACR_USERNAME` – ACR username or service principal
 - `ACR_PASSWORD` – ACR password or service principal secret
+- `AZURE_CLIENT_ID` – Azure service principal client ID
+- `AZURE_CLIENT_SECRET` – Azure service principal client secret
+- `AZURE_TENANT_ID` – Azure tenant ID
+- `AZURE_SUBSCRIPTION_ID` – Azure subscription ID
 
 ## Project Structure
 
