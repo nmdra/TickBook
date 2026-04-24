@@ -22,6 +22,9 @@ on:
       ACR_PASSWORD:
         required: false
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-scan-push:
     runs-on: ubuntu-latest

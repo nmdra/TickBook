@@ -356,8 +356,11 @@ func (m *LockManager) scanExpiringLocks(ctx context.Context) {
 			}
 
 			expiryNoticeKey := fmt.Sprintf("%s:expiry.notice:%s", seatLockKeyPrefix, state.IdempotencyKey)
-			set, err := m.redisClient.SetNX(ctx, expiryNoticeKey, "1", 2*time.Minute).Result()
-			if err != nil || !set {
+			_, err = m.redisClient.SetArgs(ctx, expiryNoticeKey, "1", redis.SetArgs{
+				Mode: "NX",
+				TTL:  2 * time.Minute,
+			}).Result()
+			if err != nil {
 				continue
 			}
 
