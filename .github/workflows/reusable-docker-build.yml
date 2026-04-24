@@ -25,6 +25,10 @@ on:
 jobs:
   build-scan-push:
     runs-on: ubuntu-latest
+    env:
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
     permissions:
       contents: read
       packages: write
@@ -113,18 +117,18 @@ jobs:
             ${{ inputs.service }}.cache-from=type=gha,scope=${{ inputs.service }}
 
       - name: Login to Azure Container Registry
-        if: github.event_name != 'pull_request' && secrets.ACR_LOGIN_SERVER != '' && secrets.ACR_USERNAME != '' && secrets.ACR_PASSWORD != ''
+        if: github.event_name != 'pull_request' && env.ACR_LOGIN_SERVER != '' && env.ACR_USERNAME != '' && env.ACR_PASSWORD != ''
         uses: docker/login-action@v3
         with:
-          registry: ${{ secrets.ACR_LOGIN_SERVER }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+          registry: ${{ env.ACR_LOGIN_SERVER }}
+          username: ${{ env.ACR_USERNAME }}
+          password: ${{ env.ACR_PASSWORD }}
 
       - name: Push image to Azure Container Registry
-        if: github.event_name != 'pull_request' && secrets.ACR_LOGIN_SERVER != '' && secrets.ACR_USERNAME != '' && secrets.ACR_PASSWORD != ''
+        if: github.event_name != 'pull_request' && env.ACR_LOGIN_SERVER != '' && env.ACR_USERNAME != '' && env.ACR_PASSWORD != ''
         uses: docker/bake-action@v5
         env:
-          REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
+          REGISTRY: ${{ env.ACR_LOGIN_SERVER }}
           REPO: ${{ steps.vars.outputs.repo }}
           TAG: ${{ steps.vars.outputs.tag }}
           SHA_TAG: ${{ steps.vars.outputs.sha_tag }}
