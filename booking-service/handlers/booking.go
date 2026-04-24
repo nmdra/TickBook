@@ -29,7 +29,9 @@ const seatLockRequestTimeout = 6 * time.Second
 func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(payload)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		log.Printf("Error encoding JSON response: %v", err)
+	}
 }
 
 func respondError(w http.ResponseWriter, status int, message string) {
@@ -45,7 +47,7 @@ func GetBookings(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "Failed to fetch bookings")
 		return
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var bookings []models.Booking
 	for rows.Next() {
@@ -278,7 +280,7 @@ func GetBookingsByUser(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "Failed to fetch bookings")
 		return
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var bookings []models.Booking
 	for rows.Next() {
@@ -303,7 +305,7 @@ func validateServiceCall(url string) error {
 	if err != nil {
 		return fmt.Errorf("service unavailable: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("resource not found")
@@ -322,7 +324,7 @@ func checkEventAvailability(availabilityURL string, requestedTickets int) (float
 	if err != nil {
 		return 0, fmt.Errorf("event service unavailable: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return 0, fmt.Errorf("event not found")
@@ -360,7 +362,7 @@ func fetchEventPrice(client *http.Client, eventURL string) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("event service returned status %d", resp.StatusCode)
