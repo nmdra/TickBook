@@ -1,0 +1,89 @@
+version: 2
+updates:
+  # Maintain dependencies for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  # Maintain dependencies for Go (booking-service)
+  - package-ecosystem: "gomod"
+    directory: "/booking-service"
+    schedule:
+      interval: "weekly"
+    groups:
+      go-deps:
+        patterns:
+          - "*"
+
+  # Maintain dependencies for NPM services
+  - package-ecosystem: "npm"
+    directory: "/event-service"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm-deps:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/notification-service"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm-deps:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/payment-service"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm-deps:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/user-service"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm-deps:
+        patterns:
+          - "*"
+
+  # Maintain Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/booking-service"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directory: "/event-service"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directory: "/nginx"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directory: "/notification-service"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directory: "/payment-service"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directory: "/user-service"
+    schedule:
+      interval: "weekly"
