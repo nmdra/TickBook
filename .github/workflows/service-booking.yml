@@ -1,0 +1,26 @@
+name: Service - Booking
+
+on:
+  push:
+    branches: [main, Development]
+    paths: ['booking-service/**']
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+      actions: read
+    uses: ./.github/workflows/reusable-docker-build.yml
+    with:
+      service: booking-service
+      dockerfile: booking-service/Dockerfile
+      context: ./booking-service
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}

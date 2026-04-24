@@ -87,10 +87,10 @@ Each service reads configuration from environment variables. See `.env.example` 
 ## CI/CD
 
 GitHub Actions workflows in `.github/workflows/`:
-- `event-service-ci.yml` – Build, lint, push Docker image
-- `user-service-ci.yml` – Build, lint, push Docker image
-- `booking-service-ci.yml` – Build, vet, push Docker image
-- `payment-service-ci.yml` – Build, test, push Docker image
+- `reusable-docker-build.yml` – Reusable workflow for building, scanning, and pushing Docker images
+- `reusable-lint.yml` – Reusable workflow for linting Node.js and Go code
+- `lint.yml` – Main workflow for running lint checks on all services
+- `service-*.yml` – Individual service workflows for independent build flows
 
 ## Conventions
 

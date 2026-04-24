@@ -1,88 +1,47 @@
-name: Docker Build, Scan, and Push
+name: Reusable Docker Build
 
 on:
-  push:
-    branches:
-      - main
-      - Development
-    tags:
-      - 'v*'
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      service:
+        required: true
+        type: string
+      dockerfile:
+        required: true
+        type: string
+      context:
+        required: true
+        type: string
+    secrets:
+      SNYK_TOKEN:
+        required: false
+      ACR_LOGIN_SERVER:
+        required: false
+      ACR_USERNAME:
+        required: false
+      ACR_PASSWORD:
+        required: false
 
 jobs:
-  detect-changes:
-    name: Detect Changed Services
-    runs-on: ubuntu-latest
-    outputs:
-      services: ${{ steps.filter.outputs.changes }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Filter changed paths
-        uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            event-service:
-              - 'event-service/**'
-            user-service:
-              - 'user-service/**'
-            booking-service:
-              - 'booking-service/**'
-            payment-service:
-              - 'payment-service/**'
-            notification-service:
-              - 'notification-service/**'
-            nginx-gateway:
-              - 'nginx/**'
-
   build-scan-push:
-    name: Build & Scan - ${{ matrix.service }}
-    needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.services != '[]' && needs.detect-changes.outputs.services != '' }}
     runs-on: ubuntu-latest
+    env:
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
     permissions:
       contents: read
       packages: write
       security-events: write
       actions: read
-    env:
-      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
-      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
-      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        service: ${{ fromJSON(needs.detect-changes.outputs.services) }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Resolve service paths
-        id: service-paths
-        run: |
-          declare -A dockerfiles=(
-            [event-service]=event-service/Dockerfile
-            [user-service]=user-service/Dockerfile
-            [booking-service]=booking-service/Dockerfile
-            [payment-service]=payment-service/Dockerfile
-            [notification-service]=notification-service/Dockerfile
-            [nginx-gateway]=nginx/Dockerfile
-          )
-          dockerfile=${dockerfiles["${{ matrix.service }}"]}
-          if [[ -z "$dockerfile" ]]; then
-            echo "Unknown service: ${{ matrix.service }}" >&2
-            exit 1
-          fi
-          echo "dockerfile=$dockerfile" >> $GITHUB_OUTPUT
-
       - name: Lint Dockerfile with Hadolint
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          dockerfile: ${{ steps.service-paths.outputs.dockerfile }}
+          dockerfile: ${{ inputs.dockerfile }}
 
       - name: Set up build variables
         id: vars
@@ -112,11 +71,11 @@ jobs:
           SHA_TAG: ${{ steps.vars.outputs.sha_tag }}
         with:
           files: ./docker-bake.hcl
-          targets: ${{ matrix.service }}
+          targets: ${{ inputs.service }}
           load: true
           set: |
-            ${{ matrix.service }}.cache-from=type=gha,scope=${{ matrix.service }}
-            ${{ matrix.service }}.cache-to=type=gha,mode=max,scope=${{ matrix.service }}
+            ${{ inputs.service }}.cache-from=type=gha,scope=${{ inputs.service }}
+            ${{ inputs.service }}.cache-to=type=gha,mode=max,scope=${{ inputs.service }}
 
       - name: Run Snyk to check Docker image for vulnerabilities
         continue-on-error: true 
@@ -124,13 +83,13 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: ghcr.io/${{ steps.vars.outputs.repo }}/${{ matrix.service }}:${{ steps.vars.outputs.sha_tag }}
-          args: --file=${{ steps.service-paths.outputs.dockerfile }} --sarif-file-output=snyk.sarif
+          image: ghcr.io/${{ steps.vars.outputs.repo }}/${{ inputs.service }}:${{ steps.vars.outputs.sha_tag }}
+          args: --file=${{ inputs.dockerfile }} --sarif-file-output=snyk.sarif
 
       - name: Save Snyk SARIF as an Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: snyk-report-${{ matrix.service }}
+          name: snyk-report-${{ inputs.service }}
           path: snyk.sarif
           retention-days: 2
 
@@ -152,10 +111,10 @@ jobs:
           SHA_TAG: ${{ steps.vars.outputs.sha_tag }}
         with:
           files: ./docker-bake.hcl
-          targets: ${{ matrix.service }}
+          targets: ${{ inputs.service }}
           push: true
           set: |
-            ${{ matrix.service }}.cache-from=type=gha,scope=${{ matrix.service }}
+            ${{ inputs.service }}.cache-from=type=gha,scope=${{ inputs.service }}
 
       - name: Login to Azure Container Registry
         if: github.event_name != 'pull_request' && env.ACR_LOGIN_SERVER != '' && env.ACR_USERNAME != '' && env.ACR_PASSWORD != ''
@@ -175,7 +134,7 @@ jobs:
           SHA_TAG: ${{ steps.vars.outputs.sha_tag }}
         with:
           files: ./docker-bake.hcl
-          targets: ${{ matrix.service }}
+          targets: ${{ inputs.service }}
           push: true
           set: |
-            ${{ matrix.service }}.cache-from=type=gha,scope=${{ matrix.service }}
+            ${{ inputs.service }}.cache-from=type=gha,scope=${{ inputs.service }}

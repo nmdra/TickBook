@@ -1,0 +1,40 @@
+name: Lint Check
+
+on:
+  push:
+    branches: [main, Development]
+    tags: ['v*']
+  pull_request:
+    branches: [main, Development]
+  workflow_dispatch:
+
+jobs:
+  lint-event-service:
+    uses: ./.github/workflows/reusable-lint.yml
+    with:
+      service_type: node
+      working_directory: event-service
+
+  lint-user-service:
+    uses: ./.github/workflows/reusable-lint.yml
+    with:
+      service_type: node
+      working_directory: user-service
+
+  lint-booking-service:
+    uses: ./.github/workflows/reusable-lint.yml
+    with:
+      service_type: go
+      working_directory: booking-service
+
+  lint-payment-service:
+    uses: ./.github/workflows/reusable-lint.yml
+    with:
+      service_type: node
+      working_directory: payment-service
+
+  lint-notification-service:
+    uses: ./.github/workflows/reusable-lint.yml
+    with:
+      service_type: node
+      working_directory: notification-service
