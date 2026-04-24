@@ -1,0 +1,21 @@
+name: Service - User
+
+on:
+  push:
+    branches: [main, Development]
+    paths: ['user-service/**']
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/reusable-docker-build.yml
+    with:
+      service: user-service
+      dockerfile: user-service/Dockerfile
+      context: ./user-service
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
