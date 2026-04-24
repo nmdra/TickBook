@@ -21,6 +21,25 @@ on:
         required: false
       ACR_PASSWORD:
         required: false
+      AZURE_CLIENT_ID:
+        required: false
+      AZURE_CLIENT_SECRET:
+        required: false
+      AZURE_TENANT_ID:
+        required: false
+      AZURE_SUBSCRIPTION_ID:
+        required: false
+  workflow_dispatch:
+    inputs:
+      service:
+        required: true
+        type: string
+      dockerfile:
+        required: true
+        type: string
+      context:
+        required: true
+        type: string
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -28,6 +47,9 @@ env:
 jobs:
   build-scan-push:
     runs-on: ubuntu-latest
+    outputs:
+      sha_tag: ${{ steps.vars.outputs.sha_tag }}
+      repo: ${{ steps.vars.outputs.repo }}
     env:
       ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
       ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
@@ -141,3 +163,47 @@ jobs:
           push: true
           set: |
             ${{ inputs.service }}.cache-from=type=gha,scope=${{ inputs.service }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-scan-push
+    if: github.event_name != 'pull_request'
+    env:
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+    steps:
+      - name: Azure Login
+        if: env.ACR_LOGIN_SERVER != '' && env.ACR_USERNAME != '' && env.ACR_PASSWORD != ''
+        uses: azure/login@v2
+        with:
+          creds: |
+            {
+              "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
+              "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
+              "tenantId": "${{ secrets.AZURE_TENANT_ID }}",
+              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+            }
+
+      - name: Update Azure Container App
+        if: env.ACR_LOGIN_SERVER != '' && env.ACR_USERNAME != '' && env.ACR_PASSWORD != ''
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az containerapp update \
+              --name ${{ inputs.service }} \
+              --resource-group tickbook \
+              --image ${{ env.ACR_LOGIN_SERVER }}/${{ needs.build-scan-push.outputs.repo }}/${{ inputs.service }}:${{ needs.build-scan-push.outputs.sha_tag }}
+
+      - name: List Azure Container App Revisions
+        if: env.ACR_LOGIN_SERVER != '' && env.ACR_USERNAME != '' && env.ACR_PASSWORD != ''
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az containerapp revision list \
+              --name ${{ inputs.service }} \
+              --resource-group tickbook \
+              --query "[].{Name:name, Image:properties.template.containers[0].image, Created:properties.createdTime}" \
+              -o table
