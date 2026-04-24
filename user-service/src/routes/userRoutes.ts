@@ -16,7 +16,6 @@ router.post('/verify-token', userController.verifyToken);
 
 router.get('/profile', authenticate, userController.getProfile);
 router.get('/', authenticate, authorizeAdmin, userController.listUsers);
-router.get('/internal/all', userController.listUsersForNotifications);
 
 router.get('/:id', userController.getUserById);
 router.put('/:id', authenticate, userController.updateUser);

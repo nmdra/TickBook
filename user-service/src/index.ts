@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import path from 'path';
 import swaggerUi from 'swagger-ui-express';
 import { AppDataSource, initializeDataSource } from './config/data-source';
-import { connectConsumer, disconnectConsumer, disconnectProducer } from './config/kafka';
+import { connectConsumer, disconnectConsumer } from './config/kafka';
 import { ensureDatabaseSchema } from './config/schema';
 import swaggerSpec from './config/swagger';
 import userRoutes from './routes/userRoutes';
@@ -55,7 +55,6 @@ const start = async (): Promise<void> => {
 const shutdown = async (signal: 'SIGTERM' | 'SIGINT'): Promise<void> => {
   logger.warn(`${signal} received. Shutting down gracefully...`);
   await disconnectConsumer();
-  await disconnectProducer();
 
   if (AppDataSource.isInitialized) {
     await AppDataSource.destroy();

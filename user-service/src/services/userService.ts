@@ -20,7 +20,6 @@ import {
   UpdateUserPersistenceInput,
   UserRepository,
 } from '../repositories/userRepository';
-import { publishUserEvent } from '../config/kafka';
 
 const ACCESS_TOKEN_EXPIRES_IN = '24h';
 const REFRESH_TOKEN_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
@@ -93,26 +92,8 @@ export class UserService {
 
     const savedUser = await this.userRepository.save(user);
     const persistedUser = await this.userRepository.findById(savedUser.id);
-    const publicUser = this.toPublicUserDto(persistedUser ?? savedUser);
 
-    const createdAt =
-      publicUser.created_at instanceof Date
-        ? publicUser.created_at.toISOString()
-        : String(publicUser.created_at);
-
-    try {
-      await publishUserEvent('user.registered', {
-        user_id: publicUser.id,
-        email: publicUser.email,
-        name: publicUser.name,
-        role: publicUser.role,
-        created_at: createdAt,
-      });
-    } catch {
-      // publishUserEvent is designed to be non-fatal; registration success should not depend on Kafka availability.
-    }
-
-    return publicUser;
+    return this.toPublicUserDto(persistedUser ?? savedUser);
   }
 
   async login(email?: string, password?: string): Promise<LoginResponseDto> {
@@ -318,12 +299,6 @@ export class UserService {
     }
 
     if (payload.email) {
-      const existingUser = await this.userRepository.findByEmail(payload.email);
-
-      if (existingUser && existingUser.id !== parsedId) {
-        throw new Error('EMAIL_ALREADY_EXISTS');
-      }
-
       changes.email = payload.email;
     }
 
