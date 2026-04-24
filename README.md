@@ -694,6 +694,7 @@ Required permissions/secrets:
 - `AZURE_CLIENT_SECRET` – Azure service principal client secret
 - `AZURE_TENANT_ID` – Azure tenant ID
 - `AZURE_SUBSCRIPTION_ID` – Azure subscription ID
+- `SLACK_WEBHOOK_URL` – Slack incoming webhook URL for build/deploy notifications
 
 ## Project Structure
 

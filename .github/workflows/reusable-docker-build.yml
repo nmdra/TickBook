@@ -29,6 +29,8 @@ on:
         required: false
       AZURE_SUBSCRIPTION_ID:
         required: false
+      SLACK_WEBHOOK_URL:
+        required: false
   workflow_dispatch:
     inputs:
       service:
@@ -164,6 +166,31 @@ jobs:
           set: |
             ${{ inputs.service }}.cache-from=type=gha,scope=${{ inputs.service }}
 
+      - name: Notify Slack
+        if: always() && secrets.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "${{ job.status == 'success' && '✅' || '❌' }} *${{ inputs.service }}* build ${{ job.status }}",
+              "attachments": [
+                {
+                  "color": "${{ job.status == 'success' && '#36a64f' || '#dc3545' }}",
+                  "fields": [
+                    { "title": "Service", "value": "${{ inputs.service }}", "short": true },
+                    { "title": "Branch", "value": "${{ github.ref_name }}", "short": true },
+                    { "title": "Commit", "value": "${{ github.sha }}", "short": true },
+                    { "title": "Actor", "value": "${{ github.actor }}", "short": true }
+                  ],
+                  "actions": [
+                    { "type": "button", "text": "View Run", "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" }
+                  ]
+                }
+              ]
+            }
+
   deploy:
     runs-on: ubuntu-latest
     needs: build-scan-push
@@ -211,3 +238,28 @@ jobs:
               --resource-group tickbook \
               --query "[].{Name:name, Image:properties.template.containers[0].image, Created:properties.createdTime}" \
               -o table
+
+      - name: Notify Slack
+        if: always() && secrets.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "${{ job.status == 'success' && '🚀' || '💥' }} *${{ inputs.service }}* deploy ${{ job.status }}",
+              "attachments": [
+                {
+                  "color": "${{ job.status == 'success' && '#36a64f' || '#dc3545' }}",
+                  "fields": [
+                    { "title": "Service", "value": "${{ inputs.service }}", "short": true },
+                    { "title": "Image tag", "value": "${{ needs.build-scan-push.outputs.sha_tag }}", "short": true },
+                    { "title": "Environment", "value": "tickbook", "short": true },
+                    { "title": "Actor", "value": "${{ github.actor }}", "short": true }
+                  ],
+                  "actions": [
+                    { "type": "button", "text": "View Run", "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" }
+                  ]
+                }
+              ]
+            }
