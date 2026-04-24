@@ -9,6 +9,11 @@ on:
 
 jobs:
   build:
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+      actions: read
     uses: ./.github/workflows/reusable-docker-build.yml
     with:
       service: event-service
