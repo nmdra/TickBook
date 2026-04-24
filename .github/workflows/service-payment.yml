@@ -1,0 +1,21 @@
+name: Service - Payment
+
+on:
+  push:
+    branches: [main, Development]
+    paths: ['payment-service/**']
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/reusable-docker-build.yml
+    with:
+      service: payment-service
+      dockerfile: payment-service/Dockerfile
+      context: ./payment-service
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}

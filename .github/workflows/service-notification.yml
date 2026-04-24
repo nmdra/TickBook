@@ -1,0 +1,21 @@
+name: Service - Notification
+
+on:
+  push:
+    branches: [main, Development]
+    paths: ['notification-service/**']
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/reusable-docker-build.yml
+    with:
+      service: notification-service
+      dockerfile: notification-service/Dockerfile
+      context: ./notification-service
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
