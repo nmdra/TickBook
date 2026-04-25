@@ -11,6 +11,7 @@ const {
   handleStripeWebhook,
   updatePaymentStatus,
   getPaymentsByBookingId,
+  getPaymentsByUserId,
 } = require('../controllers/paymentController');
 
 router.use(authenticateToken());
