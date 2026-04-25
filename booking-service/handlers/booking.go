@@ -38,6 +38,11 @@ func respondError(w http.ResponseWriter, status int, message string) {
 	respondJSON(w, status, map[string]string{"error": message})
 }
 
+func getAuthenticatedUser(r *http.Request) *AuthenticatedUser {
+	user, _ := r.Context().Value(UserContextKey).(*AuthenticatedUser)
+	return user
+}
+
 // GetBookings returns all bookings
 func GetBookings(w http.ResponseWriter, r *http.Request) {
 	rows, err := database.DB.Query(
@@ -103,6 +108,14 @@ func CreateBooking(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "user_id, event_id, and tickets must be positive integers")
 		return
 	}
+
+	// Authorization check
+	authUser := getAuthenticatedUser(r)
+	if authUser != nil && authUser.Role != "admin" && authUser.Role != "service" && authUser.ID != req.UserID {
+		respondError(w, http.StatusForbidden, "You can only create bookings for yourself.")
+		return
+	}
+
 	req.SeatID = strings.TrimSpace(req.SeatID)
 	req.SessionToken = strings.TrimSpace(req.SessionToken)
 	if req.SeatID == "" || req.SessionToken == "" {
@@ -273,14 +286,21 @@ func DeleteBooking(w http.ResponseWriter, r *http.Request) {
 // GetBookingsByUser returns all bookings for a specific user
 func GetBookingsByUser(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	userID, err := strconv.Atoi(vars["userId"])
+	userId, err := strconv.Atoi(vars["userId"])
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid user ID")
 		return
 	}
 
+	// Authorization check
+	authUser := getAuthenticatedUser(r)
+	if authUser != nil && authUser.Role != "admin" && authUser.Role != "service" && authUser.ID != userId {
+		respondError(w, http.StatusForbidden, "You can only view your own bookings.")
+		return
+	}
+
 	rows, err := database.DB.Query(
-		"SELECT id, user_id, event_id, COALESCE(seat_id, ''), tickets, total_amount, status, created_at, updated_at FROM bookings WHERE user_id = $1 ORDER BY created_at DESC", userID,
+		"SELECT id, user_id, event_id, COALESCE(seat_id, ''), tickets, total_amount, status, created_at, updated_at FROM bookings WHERE user_id = $1 ORDER BY created_at DESC", userId,
 	)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to fetch bookings")
