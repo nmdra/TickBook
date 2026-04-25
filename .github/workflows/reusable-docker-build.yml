@@ -1,5 +1,8 @@
 name: Reusable Docker Build
 
+# ---------------------------------------------------------------------------
+# Inputs / secrets
+# ---------------------------------------------------------------------------
 on:
   workflow_call:
     inputs:
@@ -12,6 +15,14 @@ on:
       context:
         required: true
         type: string
+      resource_group:
+        required: false
+        type: string
+        default: tickbook
+      environment:
+        required: false
+        type: string
+        default: production
     secrets:
       SNYK_TOKEN:
         required: false
@@ -31,193 +42,325 @@ on:
         required: false
       SLACK_WEBHOOK_URL:
         required: false
+
   workflow_dispatch:
     inputs:
       service:
         required: true
         type: string
       dockerfile:
-        required: true
+        required: false
         type: string
+        default: Dockerfile
       context:
-        required: true
+        required: false
         type: string
+        default: .
+
+# ---------------------------------------------------------------------------
+# Concurrency — cancel stale builds on the same branch, never stale deploys
+# ---------------------------------------------------------------------------
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true
 
+# ---------------------------------------------------------------------------
+# Job 1: Build → Scan → Gate → Push
+# ---------------------------------------------------------------------------
 jobs:
   build-scan-push:
     runs-on: ubuntu-latest
     outputs:
-      sha_tag: ${{ steps.vars.outputs.sha_tag }}
-      repo: ${{ steps.vars.outputs.repo }}
+      sha_tag:        ${{ steps.vars.outputs.sha_tag }}
+      repo:           ${{ steps.vars.outputs.repo }}
+      snyk_outcome:   ${{ steps.snyk.outcome }}
+      critical_found: ${{ steps.snyk_gate.outputs.critical_found }}
     env:
-      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
-      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
-      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+      ACR_LOGIN_SERVER:  ${{ secrets.ACR_LOGIN_SERVER }}
+      ACR_USERNAME:      ${{ secrets.ACR_USERNAME }}
+      ACR_PASSWORD:      ${{ secrets.ACR_PASSWORD }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     permissions:
-      contents: read
-      packages: write
+      contents:        read
+      packages:        write
       security-events: write
-      actions: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      actions:         read
 
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Lint Dockerfile ────────────────────────────────────────────────
       - name: Lint Dockerfile with Hadolint
-        uses: hadolint/hadolint-action@v3.3.0
+        uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: ${{ inputs.dockerfile }}
 
+      # ── 3. Compute build variables ────────────────────────────────────────
       - name: Set up build variables
         id: vars
         run: |
-          echo "sha_tag=sha-$(echo '${{ github.sha }}' | cut -c1-7)" >> $GITHUB_OUTPUT
-          echo "repo=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-          
-          GITHUB_REF="${{ github.ref }}"
-          
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == 'pull_request' ]]; then
-            echo "tag=pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=latest" >> $GITHUB_OUTPUT
-          fi
+          SHA_TAG="sha-$(echo '${{ github.sha }}' | cut -c1-7)"
+          REPO="$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          echo "sha_tag=${SHA_TAG}" >> "$GITHUB_OUTPUT"
+          echo "repo=${REPO}"       >> "$GITHUB_OUTPUT"
 
+          case "${{ github.ref }}" in
+            refs/tags/*) echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT" ;;
+            *)
+              if [[ "${{ github.event_name }}" == 'pull_request' ]]; then
+                echo "tag=pr-${{ github.event.number }}" >> "$GITHUB_OUTPUT"
+              else
+                echo "tag=latest" >> "$GITHUB_OUTPUT"
+              fi ;;
+          esac
+
+      # ── 4. Docker Buildx ─────────────────────────────────────────────────
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build and load image locally
-        uses: docker/bake-action@v7
+      # ── 5. Build image locally for scanning (load only, no push yet) ──────
+      #      Intentionally separate from push so Snyk can gate it.
+      - name: Build image (local load)
+        uses: docker/bake-action@v6
         env:
           REGISTRY: ghcr.io
-          REPO: ${{ steps.vars.outputs.repo }}
-          TAG: ${{ steps.vars.outputs.tag }}
-          SHA_TAG: ${{ steps.vars.outputs.sha_tag }}
+          REPO:     ${{ steps.vars.outputs.repo }}
+          TAG:      ${{ steps.vars.outputs.tag }}
+          SHA_TAG:  ${{ steps.vars.outputs.sha_tag }}
         with:
-          files: ./docker-bake.hcl
+          files:   ./docker-bake.hcl
           targets: ${{ inputs.service }}
-          load: true
+          load:    true
           set: |
             ${{ inputs.service }}.cache-from=type=gha,scope=${{ inputs.service }}
             ${{ inputs.service }}.cache-to=type=gha,mode=max,scope=${{ inputs.service }}
 
-      - name: Run Snyk to check Docker image for vulnerabilities
-        continue-on-error: true 
+      # ── 6. Snyk vulnerability scan ────────────────────────────────────────
+      #      continue-on-error so we control the gate ourselves in step 8.
+      - name: Run Snyk container scan
+        id: snyk
+        continue-on-error: true
         uses: snyk/actions/docker@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           image: ghcr.io/${{ steps.vars.outputs.repo }}/${{ inputs.service }}:${{ steps.vars.outputs.sha_tag }}
-          args: --file=${{ inputs.dockerfile }} --sarif-file-output=snyk.sarif
+          args: >-
+            --file=${{ inputs.dockerfile }}
+            --severity-threshold=high
+            --sarif-file-output=snyk.sarif
 
-      - name: Save Snyk SARIF as an Artifact
-        uses: actions/upload-artifact@v7
+      # ── 7. Parse SARIF and count critical findings ────────────────────────
+      #      Snyk marks critical CVEs with level="error" + severity="critical".
+      - name: Check for critical vulnerabilities
+        id: snyk_gate
+        if: always() && hashFiles('snyk.sarif') != ''
+        run: |
+          CRITICAL_COUNT=$(jq '[
+            .runs[].results[] |
+            select(.level == "error") |
+            select(
+              (.properties.severity // "" | ascii_downcase) == "critical" or
+              (.ruleId // "" | ascii_downcase | contains("critical"))
+            )
+          ] | length' snyk.sarif 2>/dev/null || echo "0")
+
+          echo "critical_found=${CRITICAL_COUNT}" >> "$GITHUB_OUTPUT"
+
+          if [[ "$CRITICAL_COUNT" -gt 0 ]]; then
+            echo "::error::Snyk found ${CRITICAL_COUNT} critical vulnerability/vulnerabilities. Push will be blocked."
+          else
+            echo "No critical vulnerabilities found (count=${CRITICAL_COUNT})."
+          fi
+
+      # ── 8. Upload SARIF to GitHub Security tab ───────────────────────────
+      - name: Upload Snyk SARIF to GitHub Security tab
+        if: always() && hashFiles('snyk.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
         with:
-          name: snyk-report-${{ inputs.service }}
-          path: snyk.sarif
-          retention-days: 2
+          sarif_file: snyk.sarif
+          category:   snyk-${{ inputs.service }}
 
+      # ── 9. Save SARIF as downloadable artifact ────────────────────────────
+      - name: Save Snyk SARIF as artifact
+        if: always() && hashFiles('snyk.sarif') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name:           snyk-report-${{ inputs.service }}
+          path:           snyk.sarif
+          retention-days: 7
+
+      # ── 10. Slack alert — critical vulnerabilities (fires before gate) ────
+      #       Sent immediately so the team knows why the push was blocked.
+      - name: Notify Slack — critical vulnerabilities blocked push
+        if: >
+          always() &&
+          steps.snyk_gate.outputs.critical_found != '' &&
+          steps.snyk_gate.outputs.critical_found != '0' &&
+          env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v2.1.0
+        with:
+          webhook:      ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "🚨 *Critical vulnerabilities found — image push blocked*",
+              "attachments": [{
+                "color": "#dc3545",
+                "fields": [
+                  { "title": "Service",   "value": "${{ inputs.service }}",                                                                                 "short": true },
+                  { "title": "Criticals", "value": "*${{ steps.snyk_gate.outputs.critical_found }}* CVE(s) at critical severity",                           "short": true },
+                  { "title": "Branch",    "value": "${{ github.ref_name }}",                                                                                "short": true },
+                  { "title": "Actor",     "value": "<https://github.com/${{ github.actor }}|${{ github.actor }}>",                                          "short": true },
+                  { "title": "Commit",    "value": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>",         "short": false },
+                  { "title": "Action",    "value": "Fix the vulnerabilities and re-push. The image was *not* pushed to any registry.",                       "short": false }
+                ],
+                "actions": [
+                  { "type": "button", "text": "View Security Report", "url": "${{ github.server_url }}/${{ github.repository }}/security/code-scanning" },
+                  { "type": "button", "text": "View Run",             "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" }
+                ],
+                "footer": "Snyk scan | ${{ github.repository }}"
+              }]
+            }
+
+      # ── 11. Gate: hard-fail when criticals are found ──────────────────────
+      #        Placed after the Slack notification so the alert always fires.
+      - name: Block push on critical vulnerabilities
+        if: >
+          steps.snyk_gate.outputs.critical_found != '' &&
+          steps.snyk_gate.outputs.critical_found != '0'
+        run: |
+          echo "::error::Blocking push — ${{ steps.snyk_gate.outputs.critical_found }} critical vulnerability/vulnerabilities found."
+          exit 1
+
+      # ── 12. Login to GHCR — only reached when no criticals found ─────────
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v4
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push image to registry
+      # ── 13. Push to GHCR ─────────────────────────────────────────────────
+      - name: Push image to GHCR
         if: github.event_name != 'pull_request'
-        uses: docker/bake-action@v7
+        uses: docker/bake-action@v6
         env:
           REGISTRY: ghcr.io
-          REPO: ${{ steps.vars.outputs.repo }}
-          TAG: ${{ steps.vars.outputs.tag }}
-          SHA_TAG: ${{ steps.vars.outputs.sha_tag }}
+          REPO:     ${{ steps.vars.outputs.repo }}
+          TAG:      ${{ steps.vars.outputs.tag }}
+          SHA_TAG:  ${{ steps.vars.outputs.sha_tag }}
         with:
-          files: ./docker-bake.hcl
+          files:   ./docker-bake.hcl
           targets: ${{ inputs.service }}
-          push: true
+          push:    true
           set: |
             ${{ inputs.service }}.cache-from=type=gha,scope=${{ inputs.service }}
 
+      # ── 14. Login to Azure Container Registry ────────────────────────────
       - name: Login to Azure Container Registry
-        if: github.event_name != 'pull_request' && env.ACR_LOGIN_SERVER != '' && env.ACR_USERNAME != '' && env.ACR_PASSWORD != ''
-        uses: docker/login-action@v4
+        if: |
+          github.event_name != 'pull_request' &&
+          env.ACR_LOGIN_SERVER != '' &&
+          env.ACR_USERNAME != '' &&
+          env.ACR_PASSWORD != ''
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.ACR_LOGIN_SERVER }}
           username: ${{ env.ACR_USERNAME }}
           password: ${{ env.ACR_PASSWORD }}
 
+      # ── 15. Push to ACR ───────────────────────────────────────────────────
       - name: Push image to Azure Container Registry
-        if: github.event_name != 'pull_request' && env.ACR_LOGIN_SERVER != '' && env.ACR_USERNAME != '' && env.ACR_PASSWORD != ''
-        uses: docker/bake-action@v7
+        if: |
+          github.event_name != 'pull_request' &&
+          env.ACR_LOGIN_SERVER != '' &&
+          env.ACR_USERNAME != '' &&
+          env.ACR_PASSWORD != ''
+        uses: docker/bake-action@v6
         env:
           REGISTRY: ${{ env.ACR_LOGIN_SERVER }}
-          REPO: ${{ steps.vars.outputs.repo }}
-          TAG: ${{ steps.vars.outputs.tag }}
-          SHA_TAG: ${{ steps.vars.outputs.sha_tag }}
+          REPO:     ${{ steps.vars.outputs.repo }}
+          TAG:      ${{ steps.vars.outputs.tag }}
+          SHA_TAG:  ${{ steps.vars.outputs.sha_tag }}
         with:
-          files: ./docker-bake.hcl
+          files:   ./docker-bake.hcl
           targets: ${{ inputs.service }}
-          push: true
+          push:    true
           set: |
             ${{ inputs.service }}.cache-from=type=gha,scope=${{ inputs.service }}
 
-      - name: Notify Slack
+      # ── 16. Slack — build summary ─────────────────────────────────────────
+      - name: Notify Slack — build result
         if: always() && env.SLACK_WEBHOOK_URL != ''
-        uses: slackapi/slack-github-action@v3.0.2
+        uses: slackapi/slack-github-action@v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook:      ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
           payload: |
             {
-              "text": "${{ job.status == 'success' && '✅' || '❌' }} *${{ inputs.service }}* build ${{ job.status }}",
-              "attachments": [
-                {
-                  "color": "${{ job.status == 'success' && '#36a64f' || '#dc3545' }}",
-                  "fields": [
-                    { "title": "Service", "value": "${{ inputs.service }}", "short": true },
-                    { "title": "Branch", "value": "${{ github.ref_name }}", "short": true },
-                    { "title": "Commit", "value": "${{ github.sha }}", "short": true },
-                    { "title": "Actor", "value": "${{ github.actor }}", "short": true }
-                  ],
-                  "actions": [
-                    { "type": "button", "text": "View Run", "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" }
-                  ]
-                }
-              ]
+              "text": "${{ job.status == 'success' && '✅ Build & push succeeded' || '❌ Build failed' }} — *${{ inputs.service }}*",
+              "attachments": [{
+                "color": "${{ job.status == 'success' && '#36a64f' || '#dc3545' }}",
+                "fields": [
+                  { "title": "Service",  "value": "${{ inputs.service }}",                                                                               "short": true },
+                  { "title": "Status",   "value": "${{ job.status }}",                                                                                   "short": true },
+                  { "title": "Branch",   "value": "${{ github.ref_name }}",                                                                              "short": true },
+                  { "title": "Tag",      "value": "`${{ steps.vars.outputs.sha_tag }}`",                                                                 "short": true },
+                  { "title": "Commit",   "value": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>",       "short": true },
+                  { "title": "Actor",    "value": "<https://github.com/${{ github.actor }}|${{ github.actor }}>",                                        "short": true },
+                  { "title": "Snyk",     "value": "${{ steps.snyk_gate.outputs.critical_found != '0' && steps.snyk_gate.outputs.critical_found != '' && '🚨 Criticals found — push blocked' || steps.snyk.outcome == 'success' && '✅ Clean' || '⚠️ Warnings (non-critical)' }}", "short": true },
+                  { "title": "Run",      "value": "${{ github.workflow }} #${{ github.run_number }}",                                                    "short": true }
+                ],
+                "actions": [
+                  { "type": "button", "text": "View Run",        "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" },
+                  { "type": "button", "text": "Security Report",  "url": "${{ github.server_url }}/${{ github.repository }}/security/code-scanning" }
+                ],
+                "footer": "${{ github.repository }} | ${{ github.workflow }}"
+              }]
             }
 
+  # ---------------------------------------------------------------------------
+  # Job 2: Deploy to Azure Container Apps
+  # ---------------------------------------------------------------------------
   deploy:
     runs-on: ubuntu-latest
-    needs: build-scan-push
-    if: github.event_name != 'pull_request'
+    needs:   build-scan-push
+    if:      github.event_name != 'pull_request'
+    environment: ${{ inputs.environment }}
+
     env:
-      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
-      ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
-      ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
-      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ACR_LOGIN_SERVER:      ${{ secrets.ACR_LOGIN_SERVER }}
+      AZURE_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      SLACK_WEBHOOK_URL:     ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    permissions:
+      contents: read
+
     steps:
-      - name: Azure Login
+      # ── 1. Azure login — client secret ────────────────────────────────────
+      - name: Login to Azure
         if: env.ACR_LOGIN_SERVER != '' && env.AZURE_SUBSCRIPTION_ID != ''
         uses: azure/login@v2
         with:
           creds: |
             {
-              "clientId": "${{ env.AZURE_CLIENT_ID }}",
-              "clientSecret": "${{ env.AZURE_CLIENT_SECRET }}",
-              "tenantId": "${{ env.AZURE_TENANT_ID }}",
+              "clientId":       "${{ env.AZURE_CLIENT_ID }}",
+              "clientSecret":   "${{ env.AZURE_CLIENT_SECRET }}",
+              "tenantId":       "${{ env.AZURE_TENANT_ID }}",
               "subscriptionId": "${{ env.AZURE_SUBSCRIPTION_ID }}"
             }
 
+      # ── 2. Update Container App ───────────────────────────────────────────
       - name: Update Azure Container App
         if: env.ACR_LOGIN_SERVER != '' && env.AZURE_SUBSCRIPTION_ID != ''
         uses: azure/cli@v2
@@ -225,43 +368,49 @@ jobs:
           azcliversion: latest
           inlineScript: |
             az containerapp update \
-              --name ${{ inputs.service }} \
-              --resource-group tickbook \
-              --image ${{ env.ACR_LOGIN_SERVER }}/${{ needs.build-scan-push.outputs.repo }}/${{ inputs.service }}:${{ needs.build-scan-push.outputs.sha_tag }}
+              --name           "${{ inputs.service }}" \
+              --resource-group "${{ inputs.resource_group }}" \
+              --image          "${{ env.ACR_LOGIN_SERVER }}/${{ needs.build-scan-push.outputs.repo }}/${{ inputs.service }}:${{ needs.build-scan-push.outputs.sha_tag }}"
 
-      - name: List Azure Container App Revisions
+      # ── 3. Audit: list revisions ──────────────────────────────────────────
+      - name: List Azure Container App revisions
         if: env.ACR_LOGIN_SERVER != '' && env.AZURE_SUBSCRIPTION_ID != ''
         uses: azure/cli@v2
         with:
           azcliversion: latest
           inlineScript: |
             az containerapp revision list \
-              --name ${{ inputs.service }} \
-              --resource-group tickbook \
+              --name           "${{ inputs.service }}" \
+              --resource-group "${{ inputs.resource_group }}" \
               --query "[].{Name:name, Image:properties.template.containers[0].image, Created:properties.createdTime}" \
               -o table
 
-      - name: Notify Slack
+      # ── 4. Slack — deploy result ──────────────────────────────────────────
+      - name: Notify Slack — deploy result
         if: always() && env.SLACK_WEBHOOK_URL != ''
-        uses: slackapi/slack-github-action@v3.0.2
+        uses: slackapi/slack-github-action@v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook:      ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
           payload: |
             {
-              "text": "${{ job.status == 'success' && '🚀' || '💥' }} *${{ inputs.service }}* deploy ${{ job.status }}",
-              "attachments": [
-                {
-                  "color": "${{ job.status == 'success' && '#36a64f' || '#dc3545' }}",
-                  "fields": [
-                    { "title": "Service", "value": "${{ inputs.service }}", "short": true },
-                    { "title": "Image tag", "value": "${{ needs.build-scan-push.outputs.sha_tag }}", "short": true },
-                    { "title": "Environment", "value": "tickbook", "short": true },
-                    { "title": "Actor", "value": "${{ github.actor }}", "short": true }
-                  ],
-                  "actions": [
-                    { "type": "button", "text": "View Run", "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" }
-                  ]
-                }
-              ]
+              "text": "${{ job.status == 'success' && '🚀 Deploy succeeded' || '💥 Deploy failed' }} — *${{ inputs.service }}* → *${{ inputs.environment }}*",
+              "attachments": [{
+                "color": "${{ job.status == 'success' && '#36a64f' || '#dc3545' }}",
+                "fields": [
+                  { "title": "Service",     "value": "${{ inputs.service }}",                                                                               "short": true },
+                  { "title": "Status",      "value": "${{ job.status }}",                                                                                   "short": true },
+                  { "title": "Environment", "value": "${{ inputs.environment }}",                                                                           "short": true },
+                  { "title": "Image tag",   "value": "`${{ needs.build-scan-push.outputs.sha_tag }}`",                                                      "short": true },
+                  { "title": "Branch",      "value": "${{ github.ref_name }}",                                                                              "short": true },
+                  { "title": "Actor",       "value": "<https://github.com/${{ github.actor }}|${{ github.actor }}>",                                        "short": true },
+                  { "title": "Commit",      "value": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>",       "short": true },
+                  { "title": "Run",         "value": "${{ github.workflow }} #${{ github.run_number }}",                                                    "short": true }
+                ],
+                "actions": [
+                  { "type": "button", "text": "View Run",       "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" },
+                  { "type": "button", "text": "Container Apps", "url": "https://portal.azure.com/#browse/Microsoft.App%2FcontainerApps" }
+                ],
+                "footer": "${{ github.repository }} | ${{ inputs.environment }}"
+              }]
             }
