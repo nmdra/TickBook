@@ -65,6 +65,17 @@ const getPaymentsByBookingId = async (bookingId) => {
   return result.rows;
 };
 
+const getPaymentsByUserId = async (userId) => {
+  const result = await pool.query(
+    `SELECT * FROM payments
+     WHERE user_id = $1
+     ORDER BY created_at DESC, id DESC`,
+    [userId]
+  );
+
+  return result.rows;
+};
+
 const getPaymentByStripeSessionId = async (sessionId) => {
   const result = await pool.query(
     `SELECT * FROM payments
@@ -255,6 +266,7 @@ module.exports = {
   getPaymentByStripePaymentIntentId,
   getPaymentByStripeSessionId,
   getPaymentsByBookingId,
+  getPaymentsByUserId,
   normalizeAmount,
   normalizeCurrency,
   setPaymentStateById,

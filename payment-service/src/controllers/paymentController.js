@@ -373,6 +373,18 @@ const getPaymentsByBookingId = async (req, res) => {
   }
 };
 
+const getPaymentsByUserId = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { getPaymentsByUserId: fetchPaymentsByUser } = require('../services/paymentService');
+    const payments = await fetchPaymentsByUser(userId);
+    res.json(payments);
+  } catch (err) {
+    console.error('Error fetching payments by user:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 const createStripeCheckoutSession = async (req, res) => {
   try {
     if (!isStripeConfigured()) {
@@ -612,6 +624,7 @@ module.exports = {
   getAllPayments,
   getPaymentById,
   getPaymentsByBookingId,
+  getPaymentsByUserId,
   handleStripeCancel,
   handleStripeSuccess,
   handleStripeWebhook,

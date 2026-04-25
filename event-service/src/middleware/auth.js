@@ -25,7 +25,40 @@ const verifyTokenWithUserService = async (token) => {
   return response.json();
 };
 
-const authenticateToken = async (req, res, next) => {
+const defaultPublicRoutes = [
+  { method: 'GET', path: '/' },
+  { method: 'GET', path: '/:id' },
+  { method: 'GET', path: '/:id/availability' },
+];
+
+const isPublicRoute = (req, publicRoutes) => {
+  return publicRoutes.some((route) => {
+    if (route.method !== req.method) return false;
+    
+    // Simple path matching for / and exact matches
+    if (route.path === req.path) return true;
+    
+    // Pattern matching for /:id
+    if (route.path === '/:id') {
+      const match = req.path.match(/^\/\d+$/);
+      return !!match;
+    }
+
+    // Pattern matching for /:id/availability
+    if (route.path === '/:id/availability') {
+      const match = req.path.match(/^\/\d+\/availability$/);
+      return !!match;
+    }
+
+    return false;
+  });
+};
+
+const authenticateToken = (publicRoutes = defaultPublicRoutes) => async (req, res, next) => {
+  if (isPublicRoute(req, publicRoutes)) {
+    return next();
+  }
+
   const token = extractBearerToken(req.headers.authorization || '');
 
   if (!token) {
