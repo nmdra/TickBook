@@ -125,6 +125,10 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
               }
             ],
             "body": {
@@ -158,6 +162,10 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
               }
             ],
             "body": {
@@ -187,7 +195,12 @@
           "name": "Delete Event",
           "request": {
             "method": "DELETE",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
             "url": {
               "raw": "{{eventServiceUrl}}/api/events/1",
               "host": ["{{eventServiceUrl}}"],
@@ -378,7 +391,12 @@
           "name": "List All Users",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
             "url": {
               "raw": "{{userServiceUrl}}/api/users",
               "host": ["{{userServiceUrl}}"],
@@ -402,7 +420,12 @@
           "name": "Get User by ID",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
             "url": {
               "raw": "{{userServiceUrl}}/api/users/1",
               "host": ["{{userServiceUrl}}"],
@@ -531,7 +554,12 @@
           "name": "List All Bookings",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
             "url": {
               "raw": "{{bookingServiceUrl}}/api/bookings",
               "host": ["{{bookingServiceUrl}}"],
@@ -555,7 +583,12 @@
           "name": "Get Booking by ID",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
             "url": {
               "raw": "{{bookingServiceUrl}}/api/bookings/1",
               "host": ["{{bookingServiceUrl}}"],
@@ -592,6 +625,10 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
               }
             ],
             "body": {
@@ -634,6 +671,10 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
               }
             ],
             "body": {
@@ -663,7 +704,12 @@
           "name": "Cancel Booking",
           "request": {
             "method": "DELETE",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
             "url": {
               "raw": "{{bookingServiceUrl}}/api/bookings/1",
               "host": ["{{bookingServiceUrl}}"],
@@ -687,7 +733,12 @@
           "name": "Get Bookings by User",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
             "url": {
               "raw": "{{bookingServiceUrl}}/api/bookings/user/1",
               "host": ["{{bookingServiceUrl}}"],
@@ -741,7 +792,12 @@
           "name": "List All Payments",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
             "url": {
               "raw": "{{paymentServiceUrl}}/api/payments",
               "host": ["{{paymentServiceUrl}}"],
@@ -765,7 +821,12 @@
           "name": "Get Payment by ID",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
             "url": {
               "raw": "{{paymentServiceUrl}}/api/payments/1",
               "host": ["{{paymentServiceUrl}}"],
@@ -802,6 +863,10 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
               }
             ],
             "body": {
@@ -835,6 +900,10 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
               }
             ],
             "body": {
@@ -864,7 +933,12 @@
           "name": "Get Payments by Booking",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
             "url": {
               "raw": "{{paymentServiceUrl}}/api/payments/booking/1",
               "host": ["{{paymentServiceUrl}}"],
@@ -881,6 +955,35 @@
                 { "key": "Content-Type", "value": "application/json" }
               ],
               "body": "[\n  {\n    \"id\": 1,\n    \"bookingId\": 1,\n    \"userId\": 1,\n    \"amount\": 199.98,\n    \"status\": \"pending\",\n    \"paymentMethod\": \"credit_card\",\n    \"createdAt\": \"2025-01-10T08:35:00.000Z\",\n    \"updatedAt\": \"2025-01-10T08:35:00.000Z\"\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "Get Payments by User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{paymentServiceUrl}}/api/payments/user/1",
+              "host": ["{{paymentServiceUrl}}"],
+              "path": ["api", "payments", "user", "1"]
+            },
+            "description": "Retrieve all payments for a specific user ID."
+          },
+          "response": [
+            {
+              "name": "User Payments - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "body": "[\n  {\n    \"id\": 1,\n    \"booking_id\": 1,\n    \"user_id\": 1,\n    \"amount\": 199.98,\n    \"currency\": \"usd\",\n    \"status\": \"pending\",\n    \"payment_method\": \"credit_card\",\n    \"created_at\": \"2025-01-10T08:35:00.000Z\",\n    \"updated_at\": \"2025-01-10T08:35:00.000Z\"\n  }\n]"
             }
           ]
         }

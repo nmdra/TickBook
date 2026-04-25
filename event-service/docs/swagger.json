@@ -14,6 +14,11 @@
       "description": "Development server"
     }
   ],
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
   "paths": {
     "/api/events": {
       "get": {
@@ -21,6 +26,7 @@
         "tags": [
           "Events"
         ],
+        "security": [],
         "responses": {
           "200": {
             "description": "List of events",
@@ -109,6 +115,7 @@
         "tags": [
           "Events"
         ],
+        "security": [],
         "parameters": [
           {
             "in": "path",
@@ -244,6 +251,7 @@
         "tags": [
           "Events"
         ],
+        "security": [],
         "parameters": [
           {
             "in": "path",
@@ -282,6 +290,7 @@
         "tags": [
           "Health"
         ],
+        "security": [],
         "responses": {
           "200": {
             "description": "Service is healthy",
@@ -304,6 +313,13 @@
     }
   },
   "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
     "schemas": {
       "Event": {
         "type": "object",

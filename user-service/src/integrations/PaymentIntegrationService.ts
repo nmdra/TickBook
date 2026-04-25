@@ -14,7 +14,10 @@ export class PaymentIntegrationService {
 
   async fetchPaymentHistory(userId: number): Promise<UpstreamRecord[]> {
     try {
-      const response = await this.client.get<UpstreamRecord[]>(`/api/payments/user/${userId}`);
+      const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
+      const response = await this.client.get<UpstreamRecord[]>(`/api/payments/user/${userId}`, {
+        headers: internalToken ? { Authorization: `Bearer ${internalToken}` } : {},
+      });
 
       if (!Array.isArray(response.data)) {
         logger.warn('[PaymentIntegrationService] payment history response was not an array.');

@@ -172,6 +172,33 @@ router.get('/booking/:bookingId', getPaymentsByBookingId);
 
 /**
  * @swagger
+ * /api/payments/user/{userId}:
+ *   get:
+ *     summary: Get payments by user ID
+ *     tags: [Payments]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: List of payments for the user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Payment'
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/user/:userId', getPaymentsByUserId);
+
+/**
+ * @swagger
  * /api/payments/booking/{bookingId}/checkout-session:
  *   post:
  *     summary: Create a Stripe Checkout session for a booking payment

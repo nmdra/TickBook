@@ -2,12 +2,17 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 )
+
+type contextKey string
+
+const UserContextKey contextKey = "user"
 
 type tokenVerificationResponse struct {
 	IsValid bool `json:"isValid"`
@@ -16,6 +21,11 @@ type tokenVerificationResponse struct {
 		Role string `json:"role"`
 	} `json:"user,omitempty"`
 	Service string `json:"service,omitempty"`
+}
+
+type AuthenticatedUser struct {
+	ID   int
+	Role string
 }
 
 // AuthenticateToken validates incoming bearer tokens with the User Service.
@@ -43,16 +53,30 @@ func AuthenticateToken(next http.Handler) http.Handler {
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		// Inject user into context if present
+		ctx := r.Context()
+		if verification.User != nil {
+			ctx = context.WithValue(ctx, UserContextKey, &AuthenticatedUser{
+				ID:   verification.User.ID,
+				Role: verification.User.Role,
+			})
+		} else if verification.Service != "" {
+			ctx = context.WithValue(ctx, UserContextKey, &AuthenticatedUser{
+				ID:   0,
+				Role: verification.Service,
+			})
+		}
+
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 func extractBearerToken(authHeader string) string {
-	if !strings.HasPrefix(authHeader, "Bearer ") {
+	if !strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
 		return ""
 	}
 
-	return strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+	return strings.TrimSpace(authHeader[7:])
 }
 
 func verifyTokenWithUserService(token string) (*tokenVerificationResponse, error) {

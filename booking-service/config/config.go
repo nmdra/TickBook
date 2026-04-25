@@ -17,6 +17,7 @@ type Config struct {
 	RedisAddr          string
 	EventServiceURL    string
 	UserServiceURL     string
+	InternalServiceToken string
 }
 
 func Load() *Config {
@@ -35,6 +36,7 @@ func Load() *Config {
 		RedisAddr:          getEnv("REDIS_ADDR", "localhost:6379"),
 		EventServiceURL:    getEnv("EVENT_SERVICE_URL", "http://localhost:3001"),
 		UserServiceURL:     getEnv("USER_SERVICE_URL", "http://localhost:3002"),
+		InternalServiceToken: getEnv("INTERNAL_SERVICE_TOKEN", ""),
 	}
 }
 

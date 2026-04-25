@@ -14,7 +14,10 @@ export class BookingIntegrationService {
 
   async fetchRecentBookings(userId: number): Promise<UpstreamRecord[]> {
     try {
-      const response = await this.client.get<UpstreamRecord[]>(`/api/bookings/user/${userId}`);
+      const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
+      const response = await this.client.get<UpstreamRecord[]>(`/api/bookings/user/${userId}`, {
+        headers: internalToken ? { Authorization: `Bearer ${internalToken}` } : {},
+      });
 
       if (!Array.isArray(response.data)) {
         logger.warn('[BookingIntegrationService] recent bookings response was not an array.');

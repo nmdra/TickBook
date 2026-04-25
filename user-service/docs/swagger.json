@@ -316,6 +316,11 @@
         "tags": [
           "Users"
         ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
           {
             "in": "path",

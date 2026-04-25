@@ -47,6 +47,12 @@ export const authenticate = (
 
   const token = authHeader.split(' ')[1];
 
+  // Allow internal service token to bypass JWT verification
+  if (INTERNAL_SERVICE_TOKEN && token === INTERNAL_SERVICE_TOKEN) {
+    req.user = { id: 0, email: 'internal@service', role: 'service' };
+    return next();
+  }
+
   try {
     req.user = parseJwtPayload(token);
     next();
