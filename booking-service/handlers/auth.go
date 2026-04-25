@@ -42,6 +42,16 @@ func AuthenticateToken(next http.Handler) http.Handler {
 			return
 		}
 
+		// Bypass User Service if it's an internal service token
+		if InternalServiceToken != "" && token == InternalServiceToken {
+			ctx := context.WithValue(r.Context(), UserContextKey, &AuthenticatedUser{
+				ID:   0,
+				Role: "service",
+			})
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+
 		verification, err := verifyTokenWithUserService(token)
 		if err != nil {
 			respondError(w, http.StatusServiceUnavailable, "Token validation service unavailable.")

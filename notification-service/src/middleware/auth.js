@@ -1,4 +1,6 @@
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://localhost:3002';
+const INTERNAL_SERVICE_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
 
 const extractBearerToken = (authHeader = '') => {
   if (!authHeader.startsWith('Bearer ')) {
@@ -13,6 +15,11 @@ const authenticateToken = async (req, res, next) => {
 
   if (!token) {
     return res.status(401).json({ error: 'Access denied. No token provided.' });
+  }
+
+  if (INTERNAL_SERVICE_TOKEN && token === INTERNAL_SERVICE_TOKEN) {
+    req.auth = { service: 'internal' };
+    return next();
   }
 
   try {

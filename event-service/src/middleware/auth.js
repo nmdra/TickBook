@@ -1,4 +1,6 @@
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://localhost:3002';
+const INTERNAL_SERVICE_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
 
 const extractBearerToken = (authHeader = '') => {
   if (!authHeader.startsWith('Bearer ')) {
@@ -9,6 +11,10 @@ const extractBearerToken = (authHeader = '') => {
 };
 
 const verifyTokenWithUserService = async (token) => {
+  if (INTERNAL_SERVICE_TOKEN && token === INTERNAL_SERVICE_TOKEN) {
+    return { isValid: true, service: 'internal' };
+  }
+
   const response = await fetch(`${USER_SERVICE_URL}/api/users/verify-token`, {
     method: 'POST',
     headers: {
