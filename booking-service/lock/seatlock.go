@@ -19,8 +19,8 @@ const (
 	DefaultIdempotencyTTL     = 10 * time.Minute
 	DefaultTTLWatcherInterval = 30 * time.Second
 	DefaultRequestTimeout     = 5 * time.Second
-	DefaultResultPollInterval = 25 * time.Millisecond
-	DefaultResultWaitTimeout  = 2 * time.Second
+	DefaultResultPollInterval = 50 * time.Millisecond
+	DefaultResultWaitTimeout  = 5 * time.Second
 	DefaultRequestTopic       = "seat.lock.requested"
 	DefaultLockedTopic        = "seat.locked"
 	DefaultLockFailedTopic    = "seat.lock.failed"

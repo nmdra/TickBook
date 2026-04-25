@@ -67,9 +67,9 @@ const ensureSeatLockForBooking = async (booking, sessionToken) => {
   });
 };
 
-const syncBookingConfirmation = async (payment) => {
+const syncBookingConfirmation = async (payment, bearerToken) => {
   try {
-    await updateBookingStatus(payment.booking_id, 'confirmed');
+    await updateBookingStatus(payment.booking_id, 'confirmed', bearerToken);
   } catch (err) {
     console.warn(
       `Payment ${payment.id} completed but booking ${payment.booking_id} confirmation failed: ${err.message}`
@@ -261,7 +261,7 @@ const createPayment = async (req, res) => {
       });
     }
 
-    const booking = await getBookingById(bookingId);
+    const booking = await getBookingById(bookingId, req.headers.authorization);
     if (!booking) {
       return res.status(404).json({ error: 'Booking not found' });
     }
@@ -300,7 +300,7 @@ const createPayment = async (req, res) => {
           });
 
     if (updatedPayment.status === 'completed') {
-      await syncBookingConfirmation(updatedPayment);
+      await syncBookingConfirmation(updatedPayment, req.headers.authorization);
       await deleteSeatLock({ eventId: booking.event_id, seatId: booking.seat_id });
     }
 
@@ -345,8 +345,8 @@ const updatePaymentStatus = async (req, res) => {
     }
 
     if (updatedPayment.status === 'completed') {
-      await syncBookingConfirmation(updatedPayment);
-      const booking = await getBookingById(updatedPayment.booking_id);
+      await syncBookingConfirmation(updatedPayment, req.headers.authorization);
+      const booking = await getBookingById(updatedPayment.booking_id, req.headers.authorization);
       if (booking) {
         await deleteSeatLock({ eventId: booking.event_id, seatId: booking.seat_id });
       }
@@ -382,7 +382,7 @@ const createStripeCheckoutSession = async (req, res) => {
     const body = req.body || {};
     const { bookingId } = req.params;
     const sessionToken = req.body?.sessionToken;
-    const booking = await getBookingById(bookingId);
+    const booking = await getBookingById(bookingId, req.headers.authorization);
     if (!booking) {
       return res.status(404).json({ error: 'Booking not found' });
     }

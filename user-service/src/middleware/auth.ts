@@ -7,6 +7,7 @@ export interface AuthenticatedRequest extends Request {
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const INTERNAL_SERVICE_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
 
 const parseJwtPayload = (token: string): AuthenticatedUserPayload => {
   const decoded = jwt.verify(token, JWT_SECRET as Secret);
@@ -61,6 +62,25 @@ export const authorizeAdmin = (
 ): Response | void => {
   if (req.user?.role !== 'admin') {
     return res.status(403).json({ error: 'Access denied. Admin role required.' });
+  }
+
+  next();
+};
+
+export const authenticateInternalService = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Response | void => {
+  const authHeader = req.headers.authorization;
+  const bearerToken = authHeader?.startsWith('Bearer ')
+    ? authHeader.split(' ')[1]
+    : undefined;
+  const internalToken = req.headers['x-internal-token'];
+  const token = bearerToken || (Array.isArray(internalToken) ? internalToken[0] : internalToken);
+
+  if (!INTERNAL_SERVICE_TOKEN || token !== INTERNAL_SERVICE_TOKEN) {
+    return res.status(401).json({ error: 'Invalid internal service token.' });
   }
 
   next();

@@ -10,6 +10,7 @@ const { createRedisClient } = require('./config/redis');
 const { createKafkaProducer, disconnectKafka } = require('./config/kafka');
 const logger = require('./config/logger');
 const swaggerSpec = require('./swagger');
+const { authenticateToken } = require('./middleware/auth');
 const eventRoutes = require('./routes/eventRoutes');
 
 const app = express();
@@ -24,7 +25,7 @@ app.use(express.json());
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Routes
-app.use('/api/events', eventRoutes);
+app.use('/api/events', authenticateToken, eventRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

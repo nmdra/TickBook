@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { UserController } from '../controllers/userController';
-import { authenticate, authorizeAdmin } from '../middleware/auth';
+import { authenticate, authenticateInternalService, authorizeAdmin } from '../middleware/auth';
 
 const router = Router();
 const userController = new UserController();
@@ -16,8 +16,9 @@ router.post('/verify-token', userController.verifyToken);
 
 router.get('/profile', authenticate, userController.getProfile);
 router.get('/', authenticate, authorizeAdmin, userController.listUsers);
+router.get('/internal/all', authenticateInternalService, userController.listUsers);
 
-router.get('/:id', userController.getUserById);
+router.get('/:id', authenticate, userController.getUserById);
 router.put('/:id', authenticate, userController.updateUser);
 router.delete('/:id', authenticate, userController.deleteUser);
 
