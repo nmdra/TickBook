@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { authenticateToken } = require('../middleware/auth');
 const {
   getAllPayments,
   getPaymentById,
@@ -11,6 +12,8 @@ const {
   updatePaymentStatus,
   getPaymentsByBookingId,
 } = require('../controllers/paymentController');
+
+router.use(authenticateToken());
 
 /**
  * @swagger

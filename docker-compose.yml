@@ -126,6 +126,7 @@ services:
       DB_NAME: eventdb
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      USER_SERVICE_URL: http://user-service:3002
     depends_on:
       postgres-event:
         condition: service_healthy
@@ -146,6 +147,9 @@ services:
       KAFKA_BROKERS: kafka:29092
       KAFKA_USERS_TOPIC: users
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-change-me-in-prod}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8080/api/users/auth/google/callback}
+      FRONTEND_SUCCESS_URL: ${FRONTEND_SUCCESS_URL:-http://localhost:5173/auth/google/success}
+      FRONTEND_DASHBOARD_URL: ${FRONTEND_DASHBOARD_URL:-http://localhost:5173/}
       BOOKING_SERVICE_URL: http://booking-service:3003
       PAYMENT_SERVICE_URL: http://payment-service:3004
     depends_on:
@@ -195,6 +199,8 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       BOOKING_SERVICE_URL: http://booking-service:3003
+      USER_SERVICE_URL: http://user-service:3002
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-change-me-in-prod}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       STRIPE_CURRENCY: ${STRIPE_CURRENCY:-usd}

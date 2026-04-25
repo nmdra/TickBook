@@ -75,5 +75,9 @@ export type VerifyTokenResultDto =
       };
     }
   | {
+      isValid: true;
+      service: 'internal';
+    }
+  | {
       isValid: false;
     };

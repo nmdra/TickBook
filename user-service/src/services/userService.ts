@@ -39,25 +39,28 @@ export class UserService {
     process.env.JWT_SECRET || 'your-secret-key-change-in-production';
   private readonly refreshTokenSecret =
     process.env.JWT_REFRESH_SECRET || this.accessTokenSecret;
-  private readonly googleClientId = process.env.GOOGLE_CLIENT_ID || '';
+  private readonly googleClientId = this.normalizeGoogleClientId(
+    process.env.GOOGLE_CLIENT_ID || ''
+  );
   private readonly googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
   private readonly googleRedirectUri =
     process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3002/api/users/auth/google/callback';
+  private readonly internalServiceToken = process.env.INTERNAL_SERVICE_TOKEN || '';
   private readonly googleClient = new OAuth2Client(
     this.googleClientId,
-    this.googleClientSecret,
-    this.googleRedirectUri
+    this.googleClientSecret
   );
   private readonly userRepository = new UserRepository();
   private readonly bookingIntegrationService = new BookingIntegrationService();
   private readonly paymentIntegrationService = new PaymentIntegrationService();
 
-  generateGoogleAuthUrl(): string {
+  generateGoogleAuthUrl(redirectUri?: string): string {
     this.assertGoogleOAuthConfig();
 
     return this.googleClient.generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
+      redirect_uri: redirectUri || this.googleRedirectUri,
       scope: ['profile', 'email'],
     });
   }
@@ -115,7 +118,7 @@ export class UserService {
     return this.createAuthenticatedSession(user);
   }
 
-  async handleGoogleCallback(code: string): Promise<LoginResponseDto> {
+  async handleGoogleCallback(code: string, redirectUri?: string): Promise<LoginResponseDto> {
     if (!code) {
       throw new ServiceError(400, 'Authorization code is required.');
     }
@@ -123,7 +126,10 @@ export class UserService {
     this.assertGoogleOAuthConfig();
 
     try {
-      const { tokens } = await this.googleClient.getToken(code);
+      const { tokens } = await this.googleClient.getToken({
+        code,
+        redirect_uri: redirectUri || this.googleRedirectUri,
+      });
 
       if (!tokens.id_token) {
         throw new ServiceError(500, 'Failed to retrieve Google ID token.');
@@ -227,6 +233,13 @@ export class UserService {
     if (!token) {
       return {
         isValid: false,
+      };
+    }
+
+    if (this.internalServiceToken && token === this.internalServiceToken) {
+      return {
+        isValid: true,
+        service: 'internal',
       };
     }
 
@@ -371,6 +384,10 @@ export class UserService {
     if (!this.googleClientId || !this.googleClientSecret || !this.googleRedirectUri) {
       throw new ServiceError(500, 'Google OAuth is not configured.');
     }
+  }
+
+  private normalizeGoogleClientId(value: string): string {
+    return value.trim().replace(/^https?:\/\//i, '');
   }
 
   private verifyTokenPayload(token: string, secret: string): AuthenticatedUserPayload {

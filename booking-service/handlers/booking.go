@@ -24,7 +24,7 @@ var (
 	SeatLockManager *lock.LockManager
 )
 
-const seatLockRequestTimeout = 6 * time.Second
+const seatLockRequestTimeout = 30 * time.Second
 
 func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
@@ -112,7 +112,7 @@ func CreateBooking(w http.ResponseWriter, r *http.Request) {
 
 	// Validate user exists via User Service
 	userURL := fmt.Sprintf("%s/api/users/%d", UserServiceURL, req.UserID)
-	if err := validateServiceCall(userURL); err != nil {
+	if err := validateServiceCall(userURL, r.Header.Get("Authorization")); err != nil {
 		log.Printf("User validation failed: %v", err)
 		respondError(w, http.StatusBadRequest, fmt.Sprintf("User validation failed: %v", err))
 		return
@@ -120,7 +120,7 @@ func CreateBooking(w http.ResponseWriter, r *http.Request) {
 
 	// Check event availability via Event Service
 	eventURL := fmt.Sprintf("%s/api/events/%d/availability", EventServiceURL, req.EventID)
-	ticketPrice, err := checkEventAvailability(eventURL, req.Tickets)
+	ticketPrice, err := checkEventAvailability(eventURL, req.Tickets, r.Header.Get("Authorization"))
 	if err != nil {
 		log.Printf("Event availability check failed: %v", err)
 		respondError(w, http.StatusBadRequest, fmt.Sprintf("Event availability check failed: %v", err))
@@ -141,14 +141,20 @@ func CreateBooking(w http.ResponseWriter, r *http.Request) {
 	totalAmount := ticketPrice * float64(req.Tickets)
 
 	var booking models.Booking
+	var seatIDNull sql.NullString
 	err = database.DB.QueryRow(
 		`INSERT INTO bookings (user_id, event_id, seat_id, tickets, total_amount, status, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, 'pending', $6, $6)
 		 RETURNING id, user_id, event_id, seat_id, tickets, total_amount, status, created_at, updated_at`,
 		req.UserID, req.EventID, req.SeatID, req.Tickets, totalAmount, time.Now(),
-	).Scan(&booking.ID, &booking.UserID, &booking.EventID, &booking.SeatID, &booking.Tickets, &booking.TotalAmount, &booking.Status, &booking.CreatedAt, &booking.UpdatedAt)
+	).Scan(&booking.ID, &booking.UserID, &booking.EventID, &seatIDNull, &booking.Tickets, &booking.TotalAmount, &booking.Status, &booking.CreatedAt, &booking.UpdatedAt)
+
+	if seatIDNull.Valid {
+		booking.SeatID = seatIDNull.String
+	}
 
 	if err != nil {
+		log.Printf("ERROR: Failed to insert booking: %v", err)
 		releaseCtx, cancelRelease := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancelRelease()
 		if releaseErr := SeatLockManager.DeleteLock(releaseCtx, req.EventID, req.SeatID); releaseErr != nil {
@@ -299,9 +305,17 @@ func GetBookingsByUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // validateServiceCall makes a GET request to the given URL and returns an error if it fails
-func validateServiceCall(url string) error {
+func validateServiceCall(url string, authHeader string) error {
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	if authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("service unavailable: %v", err)
 	}
@@ -318,9 +332,17 @@ func validateServiceCall(url string) error {
 
 // checkEventAvailability calls the Event Service to verify ticket availability
 // and returns the ticket price
-func checkEventAvailability(availabilityURL string, requestedTickets int) (float64, error) {
+func checkEventAvailability(availabilityURL string, requestedTickets int, authHeader string) (float64, error) {
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(availabilityURL)
+	req, err := http.NewRequest(http.MethodGet, availabilityURL, nil)
+	if err != nil {
+		return 0, err
+	}
+	if authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("event service unavailable: %v", err)
 	}
@@ -347,7 +369,7 @@ func checkEventAvailability(availabilityURL string, requestedTickets int) (float
 
 	// Fetch event details to get the ticket price
 	eventDetailURL := availabilityURL[:len(availabilityURL)-len("/availability")]
-	ticketPrice, err := fetchEventPrice(client, eventDetailURL)
+	ticketPrice, err := fetchEventPrice(client, eventDetailURL, authHeader)
 	if err != nil {
 		log.Printf("Warning: Could not fetch event price, using default: %v", err)
 		ticketPrice = 50.00
@@ -357,8 +379,16 @@ func checkEventAvailability(availabilityURL string, requestedTickets int) (float
 }
 
 // fetchEventPrice retrieves the ticket price from the event detail endpoint
-func fetchEventPrice(client *http.Client, eventURL string) (float64, error) {
-	resp, err := client.Get(eventURL)
+func fetchEventPrice(client *http.Client, eventURL string, authHeader string) (float64, error) {
+	req, err := http.NewRequest(http.MethodGet, eventURL, nil)
+	if err != nil {
+		return 0, err
+	}
+	if authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, err
 	}

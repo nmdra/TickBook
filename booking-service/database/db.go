@@ -31,6 +31,7 @@ func Connect(cfg *config.Config) {
 	}
 
 	createTable()
+	migrateTable()
 }
 
 func createTable() {
@@ -53,5 +54,26 @@ func createTable() {
 	} else {
 		log.Println("Bookings table ready")
 	}
+}
 
+// migrateTable adds any missing columns to an existing bookings table.
+// Safe to run on every startup — uses ADD COLUMN IF NOT EXISTS.
+func migrateTable() {
+	migrations := []struct {
+		desc string
+		sql  string
+	}{
+		{
+			desc: "add seat_id column",
+			sql:  `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS seat_id VARCHAR(128);`,
+		},
+	}
+
+	for _, m := range migrations {
+		if _, err := DB.Exec(m.sql); err != nil {
+			log.Printf("Warning: migration failed (%s): %v", m.desc, err)
+		} else {
+			log.Printf("Migration OK: %s", m.desc)
+		}
+	}
 }

@@ -61,6 +61,7 @@ func main() {
 
 	// Booking routes
 	api := r.PathPrefix("/api/bookings").Subrouter()
+	api.Use(handlers.AuthenticateToken)
 	api.HandleFunc("", handlers.GetBookings).Methods("GET")
 	api.HandleFunc("/{id:[0-9]+}", handlers.GetBooking).Methods("GET")
 	api.HandleFunc("", handlers.CreateBooking).Methods("POST")

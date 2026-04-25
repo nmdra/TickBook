@@ -12,10 +12,8 @@ import { ServiceError, UserService } from '../services/userService';
 
 export class UserController {
   private readonly userService = new UserService();
-  private readonly frontendSuccessUrl =
-    process.env.FRONTEND_SUCCESS_URL || 'http://localhost:3002/google-auth-success.html';
   private readonly frontendDashboardUrl =
-    process.env.FRONTEND_DASHBOARD_URL || 'http://localhost:3000/dashboard';
+    process.env.FRONTEND_DASHBOARD_URL || 'http://localhost:5173/';
 
   register = async (
     req: Request<unknown, unknown, RegisterRequestDto>,
@@ -41,9 +39,11 @@ export class UserController {
     }
   };
 
-  initiateGoogleAuth = async (_req: Request, res: Response): Promise<Response | void> => {
+  initiateGoogleAuth = async (req: Request, res: Response): Promise<Response | void> => {
     try {
-      const googleAuthUrl = this.userService.generateGoogleAuthUrl();
+      const googleAuthUrl = this.userService.generateGoogleAuthUrl(
+        this.resolveGoogleCallbackUrl(req)
+      );
       return res.redirect(302, googleAuthUrl);
     } catch (error) {
       return this.handleError(res, error, 'Initiate Google auth error:');
@@ -65,27 +65,26 @@ export class UserController {
         throw new ServiceError(400, 'Authorization code is required.');
       }
 
-      const result = await this.userService.handleGoogleCallback(code);
-      return res.redirect(
-        302,
-        this.buildFrontendRedirectUrl({
-          accessToken: result.token,
-          refreshToken: result.refreshToken,
-        })
+      const result = await this.userService.handleGoogleCallback(
+        code,
+        this.resolveGoogleCallbackUrl(req)
       );
+
+      // Redirect directly to frontend home page with tokens as query params.
+      // The frontend AuthContext will read them, store them, and clear the URL.
+      const homeUrl = new URL(this.frontendDashboardUrl);
+      homeUrl.searchParams.set('accessToken', result.token);
+      homeUrl.searchParams.set('refreshToken', result.refreshToken);
+      return res.redirect(302, homeUrl.toString());
+
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Google authentication failed.';
+      console.error('Google auth callback error:', message);
 
-      try {
-        return res.redirect(
-          302,
-          this.buildFrontendRedirectUrl({
-            error: message,
-          })
-        );
-      } catch {
-        return this.handleError(res, error, 'Google auth callback error:');
-      }
+      // Redirect to frontend login page with error message
+      const loginUrl = new URL('/login', this.frontendDashboardUrl);
+      loginUrl.searchParams.set('error', message);
+      return res.redirect(302, loginUrl.toString());
     }
   };
 
@@ -118,7 +117,8 @@ export class UserController {
     res: Response
   ): Promise<Response> => {
     try {
-      const result = await this.userService.verifyAccessToken(req.body.token);
+      const bearerToken = this.extractBearerToken(req.headers.authorization);
+      const result = await this.userService.verifyAccessToken(req.body.token || bearerToken);
       return res.status(result.isValid ? 200 : 401).json(result);
     } catch (error) {
       return this.handleError(res, error, 'Verify token error:');
@@ -191,15 +191,43 @@ export class UserController {
     return res.status(500).json({ error: 'Internal server error.' });
   }
 
-  private buildFrontendRedirectUrl(params: Record<string, string>): string {
-    const redirectUrl = new URL(this.frontendSuccessUrl);
+  private extractBearerToken(authHeader?: string): string | undefined {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return undefined;
+    }
 
-    Object.entries(params).forEach(([key, value]) => {
-      redirectUrl.searchParams.set(key, value);
-    });
+    return authHeader.slice('Bearer '.length).trim();
+  }
 
-    redirectUrl.searchParams.set('dashboardUrl', this.frontendDashboardUrl);
+  private resolveGoogleCallbackUrl(req: {
+    headers: Request['headers'];
+    protocol: string;
+    get(name: string): string | undefined;
+  }): string {
+    const configuredRedirectUri = process.env.GOOGLE_REDIRECT_URI;
+    if (configuredRedirectUri && !this.isLocalhostUrl(configuredRedirectUri)) {
+      return configuredRedirectUri;
+    }
 
-    return redirectUrl.toString();
+    const forwardedProto = req.headers['x-forwarded-proto'];
+    const forwardedHost = req.headers['x-forwarded-host'];
+    const proto = this.firstHeaderValue(forwardedProto) || req.protocol;
+    const host = this.firstHeaderValue(forwardedHost) || req.get('host');
+
+    return `${proto}://${host}/api/users/auth/google/callback`;
+  }
+
+  private firstHeaderValue(value: string | string[] | undefined): string | undefined {
+    const rawValue = Array.isArray(value) ? value[0] : value;
+    return rawValue?.split(',')[0]?.trim();
+  }
+
+  private isLocalhostUrl(value: string): boolean {
+    try {
+      const url = new URL(value);
+      return ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+    } catch {
+      return false;
+    }
   }
 }
