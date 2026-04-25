@@ -41,6 +41,7 @@ func main() {
 
 	handlers.EventServiceURL = cfg.EventServiceURL
 	handlers.UserServiceURL = cfg.UserServiceURL
+	handlers.InternalServiceToken = cfg.InternalServiceToken
 
 	r := mux.NewRouter()
 

@@ -19,9 +19,10 @@ import (
 )
 
 var (
-	EventServiceURL string
-	UserServiceURL  string
-	SeatLockManager *lock.LockManager
+	EventServiceURL      string
+	UserServiceURL       string
+	InternalServiceToken string
+	SeatLockManager      *lock.LockManager
 )
 
 const seatLockRequestTimeout = 30 * time.Second
@@ -331,8 +332,14 @@ func validateServiceCall(url string, authHeader string) error {
 	if err != nil {
 		return err
 	}
-	if authHeader != "" {
-		req.Header.Set("Authorization", authHeader)
+
+	token := authHeader
+	if token == "" && InternalServiceToken != "" {
+		token = "Bearer " + InternalServiceToken
+	}
+
+	if token != "" {
+		req.Header.Set("Authorization", token)
 	}
 
 	resp, err := client.Do(req)
@@ -358,8 +365,14 @@ func checkEventAvailability(availabilityURL string, requestedTickets int, authHe
 	if err != nil {
 		return 0, err
 	}
-	if authHeader != "" {
-		req.Header.Set("Authorization", authHeader)
+
+	token := authHeader
+	if token == "" && InternalServiceToken != "" {
+		token = "Bearer " + InternalServiceToken
+	}
+
+	if token != "" {
+		req.Header.Set("Authorization", token)
 	}
 
 	resp, err := client.Do(req)
@@ -404,8 +417,14 @@ func fetchEventPrice(client *http.Client, eventURL string, authHeader string) (f
 	if err != nil {
 		return 0, err
 	}
-	if authHeader != "" {
-		req.Header.Set("Authorization", authHeader)
+
+	token := authHeader
+	if token == "" && InternalServiceToken != "" {
+		token = "Bearer " + InternalServiceToken
+	}
+
+	if token != "" {
+		req.Header.Set("Authorization", token)
 	}
 
 	resp, err := client.Do(req)
