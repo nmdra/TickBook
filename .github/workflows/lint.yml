@@ -3,37 +3,72 @@ name: Lint Check
 on:
   push:
     branches: [main, Development]
-    tags: ['v*']
+    tags: ["v*"]
   pull_request:
     branches: [main, Development]
   workflow_dispatch:
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      event-service: ${{ steps.filter.outputs.event-service }}
+      user-service: ${{ steps.filter.outputs.user-service }}
+      booking-service: ${{ steps.filter.outputs.booking-service }}
+      payment-service: ${{ steps.filter.outputs.payment-service }}
+      notification-service: ${{ steps.filter.outputs.notification-service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            event-service:
+              - 'event-service/**'
+            user-service:
+              - 'user-service/**'
+            booking-service:
+              - 'booking-service/**'
+            payment-service:
+              - 'payment-service/**'
+            notification-service:
+              - 'notification-service/**'
+
   lint-event-service:
+    needs: [changes]
+    if: needs.changes.outputs.event-service == 'true'
     uses: ./.github/workflows/reusable-lint.yml
     with:
       service_type: node
       working_directory: event-service
 
   lint-user-service:
+    needs: [changes]
+    if: needs.changes.outputs.user-service == 'true'
     uses: ./.github/workflows/reusable-lint.yml
     with:
       service_type: node
       working_directory: user-service
 
   lint-booking-service:
+    needs: [changes]
+    if: needs.changes.outputs.booking-service == 'true'
     uses: ./.github/workflows/reusable-lint.yml
     with:
       service_type: go
       working_directory: booking-service
 
   lint-payment-service:
+    needs: [changes]
+    if: needs.changes.outputs.payment-service == 'true'
     uses: ./.github/workflows/reusable-lint.yml
     with:
       service_type: node
       working_directory: payment-service
 
   lint-notification-service:
+    needs: [changes]
+    if: needs.changes.outputs.notification-service == 'true'
     uses: ./.github/workflows/reusable-lint.yml
     with:
       service_type: node
