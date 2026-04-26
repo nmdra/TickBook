@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getAllEvents,
+  getUpcomingEvents,
   getEventsByUserId,
   getEventById,
   createEvent,
@@ -92,6 +93,91 @@ const {
  *         description: Internal server error
  */
 router.get('/', getAllEvents);
+
+/**
+ * @swagger
+ * /api/events/upcoming:
+ *   get:
+ *     summary: List upcoming events with optional filters and pagination
+ *     tags: [Events]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *         description: Maximum number of items to return
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *         description: Number of items to skip
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Start date-time for filtering events
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: End date-time for filtering events
+ *       - in: query
+ *         name: venue
+ *         schema:
+ *           type: string
+ *         description: Case-insensitive partial match on venue
+ *       - in: query
+ *         name: min_price
+ *         schema:
+ *           type: number
+ *           minimum: 0
+ *         description: Minimum ticket price
+ *       - in: query
+ *         name: max_price
+ *         schema:
+ *           type: number
+ *           minimum: 0
+ *         description: Maximum ticket price
+ *     responses:
+ *       200:
+ *         description: Upcoming events response
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Event'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     offset:
+ *                       type: integer
+ *                     count:
+ *                       type: integer
+ *                     has_more:
+ *                       type: boolean
+ *                 filters:
+ *                   type: object
+ *       400:
+ *         description: Invalid query parameters
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/upcoming', getUpcomingEvents);
 
 /**
  * @swagger
