@@ -231,7 +231,7 @@ const getEventsByUserId = async (req, res) => {
         logger.warn('Redis read error:', err.message);
       }
     }
-
+    console.log('Fetching events for userId:', parsedUserId);
     const result = await pool.query('SELECT * FROM events WHERE user_id = $1 ORDER BY date ASC', [parsedUserId]);
 
     if (redis) {
