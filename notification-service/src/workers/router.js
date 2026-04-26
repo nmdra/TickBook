@@ -1,4 +1,5 @@
 const { Kafka } = require('kafkajs');
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const { DOMAIN_TOPICS, INTERNAL_TOPICS } = require('../config/topics');
 const { getPreferences } = require('../config/preferences');
 const { resolveTemplate } = require('../config/templates');

@@ -295,6 +295,42 @@ const checkAvailability = async (req, res) => {
   }
 };
 
+const reduceTicketsByBooking = async (eventId, tickets) => {
+  try {
+    const result = await pool.query(
+      `UPDATE events SET available_tickets = available_tickets - $1
+       WHERE id = $2 AND available_tickets >= $1 RETURNING *`,
+      [tickets, eventId]
+    );
+
+    if (result.rows.length === 0) {
+      logger.warn(`Failed to reduce tickets for event ${eventId}: Not enough tickets or event not found.`);
+      return null;
+    }
+
+    const event = result.rows[0];
+
+    // Invalidate cache
+    const redis = getRedis();
+    if (redis) {
+      try {
+        await redis.del('events:all', `events:${eventId}`);
+        if (event.user_id) {
+          await redis.del(`events:user:${event.user_id}`);
+        }
+      } catch (err) {
+        logger.warn('Redis invalidation error:', err.message);
+      }
+    }
+
+    logger.info(`Reduced ${tickets} tickets for event ${eventId}. New available: ${event.available_tickets}`);
+    return event;
+  } catch (err) {
+    logger.error(`Error reducing tickets for event ${eventId}:`, err.message);
+    throw err;
+  }
+};
+
 module.exports = {
   getAllEvents,
   getEventsByUserId,
@@ -303,4 +339,5 @@ module.exports = {
   updateEvent,
   deleteEvent,
   checkAvailability,
+  reduceTicketsByBooking,
 };
